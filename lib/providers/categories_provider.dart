@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/category_model.dart';
+import '../services/api_service.dart';
 
 class CategoriesNotifier extends Notifier<List<CategoryModel>> {
   @override
   List<CategoryModel> build() {
+    // Fetch live categories from backend asynchronously
+    Future.microtask(() => fetchFromBackend());
+
     return [
       CategoryModel(
         id: 'cat_fashion',
@@ -41,6 +45,15 @@ class CategoriesNotifier extends Notifier<List<CategoryModel>> {
         displayOrder: 5,
       ),
     ];
+  }
+
+  Future<void> fetchFromBackend() async {
+    try {
+      final remote = await ApiService.getCategories();
+      if (remote != null && remote.isNotEmpty) {
+        state = remote;
+      }
+    } catch (_) {}
   }
 
   void addCategory(String name, {String iconName = 'category'}) {

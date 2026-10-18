@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/session_model.dart';
 import '../models/brand_model.dart';
 import '../models/voucher_model.dart';
+import '../services/api_service.dart';
 import 'vouchers_provider.dart';
 import 'categories_provider.dart';
 
 class SessionsNotifier extends Notifier<List<SessionModel>> {
   @override
   List<SessionModel> build() {
+    Future.microtask(() => fetchFromBackend());
+
     return [
       SessionModel(
         id: 'session_aurora_01',
@@ -44,6 +47,15 @@ class SessionsNotifier extends Notifier<List<SessionModel>> {
         claimedVouchersCount: 61,
       ),
     ];
+  }
+
+  Future<void> fetchFromBackend() async {
+    try {
+      final remote = await ApiService.getActiveSessions();
+      if (remote != null && remote.isNotEmpty) {
+        state = remote;
+      }
+    } catch (_) {}
   }
 
   void addSession(SessionModel session) {
@@ -176,6 +188,9 @@ class GenerativeSessionNotifier extends Notifier<GenerativeSessionState> {
     );
 
     ref.read(vouchersProvider.notifier).addVoucher(newVoucher);
+
+    // Persist claim in live Supabase PostgreSQL database
+    ApiService.claimSessionVoucher(session.id);
 
     state = state.copyWith(
       status: GenerativeStatus.completed,

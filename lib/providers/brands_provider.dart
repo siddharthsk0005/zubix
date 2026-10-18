@@ -1,10 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/brand_model.dart';
+import '../services/api_service.dart';
 import 'categories_provider.dart';
 
 class BrandsNotifier extends Notifier<List<BrandModel>> {
   @override
   List<BrandModel> build() {
+    Future.microtask(() => fetchFromBackend());
+
     return [
       BrandModel(
         id: 'brand_aurora',
@@ -119,6 +122,15 @@ class BrandsNotifier extends Notifier<List<BrandModel>> {
         isApproved: true,
       ),
     ];
+  }
+
+  Future<void> fetchFromBackend() async {
+    try {
+      final remote = await ApiService.getBrands();
+      if (remote != null && remote.isNotEmpty) {
+        state = remote;
+      }
+    } catch (_) {}
   }
 
   void addBrand(BrandModel brand) {
