@@ -66,7 +66,7 @@ app.post('/api/categories', async (req: Request, res: Response) => {
 
 app.put('/api/categories/:id', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { name, isActive } = req.body;
 
     const updated = await prisma.category.update({
@@ -84,7 +84,7 @@ app.put('/api/categories/:id', async (req: Request, res: Response) => {
 
 app.delete('/api/categories/:id', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     await prisma.category.delete({ where: { id } });
     res.json({ success: true, message: 'Category deleted' });
   } catch (error: any) {
@@ -152,7 +152,7 @@ app.post('/api/brands', async (req: Request, res: Response) => {
 
 app.put('/api/brands/:id/approve', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { isApproved = true } = req.body;
 
     const updated = await prisma.brand.update({
@@ -167,7 +167,7 @@ app.put('/api/brands/:id/approve', async (req: Request, res: Response) => {
 
 app.put('/api/brands/:id', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const {
       name,
       tagline,
@@ -261,8 +261,8 @@ app.post('/api/sessions', async (req: Request, res: Response) => {
 
 app.post('/api/sessions/:id/claim', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const session = await prisma.session.findUnique({
+    const id = String(req.params.id);
+    const session: any = await prisma.session.findUnique({
       where: { id },
       include: { brand: { include: { category: true } } },
     });
@@ -281,8 +281,8 @@ app.post('/api/sessions/:id/claim', async (req: Request, res: Response) => {
         brandId: session.brandId,
         sessionId: session.id,
         discountValue: session.discountValue,
-        brandWebsite: session.brand.websiteUrl,
-        categoryName: session.brand.category?.name || 'Featured',
+        brandWebsite: session.brand?.websiteUrl || '',
+        categoryName: session.brand?.category?.name || 'Featured',
         claimedAt: new Date(),
         expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         isRedeemed: false,
@@ -292,8 +292,8 @@ app.post('/api/sessions/:id/claim', async (req: Request, res: Response) => {
 
     res.status(201).json({
       ...claimed,
-      brandName: session.brand.name,
-      brandLogoUrl: session.brand.logoUrl,
+      brandName: session.brand?.name || 'Partner Brand',
+      brandLogoUrl: session.brand?.logoUrl || '',
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -305,15 +305,15 @@ app.post('/api/sessions/:id/claim', async (req: Request, res: Response) => {
 // ----------------------------------------------------
 app.get('/api/vouchers', async (_req: Request, res: Response) => {
   try {
-    const vouchers = await prisma.voucherClaim.findMany({
+    const vouchers: any[] = await prisma.voucherClaim.findMany({
       include: { brand: true },
       orderBy: { claimedAt: 'desc' },
     });
     res.json(
       vouchers.map((v) => ({
         ...v,
-        brandName: v.brand.name,
-        brandLogoUrl: v.brand.logoUrl,
+        brandName: v.brand?.name || 'Partner Brand',
+        brandLogoUrl: v.brand?.logoUrl || '',
       }))
     );
   } catch (error: any) {
@@ -323,7 +323,7 @@ app.get('/api/vouchers', async (_req: Request, res: Response) => {
 
 app.put('/api/vouchers/:id/redeem', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const updated = await prisma.voucherClaim.update({
       where: { id },
       data: { isRedeemed: true },
