@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  iconName     String   @default("category")
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  brands       Brand[]
+}
+
+model Brand {
+  id               String         @id @default(uuid())
+  name             String
+  tagline          String
+  bio              String
+  logoUrl          String
+  showcaseImages   String[]
+  websiteUrl       String
+  socialLinks      Json           @default("{}")
+  contactEmail     String
+  contactPhone     String
+  sessionCreatedBy String         @default("Zubix Curators")
+  isApproved       Boolean        @default(false)
+  categoryId       String
+  category         Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  sessions         Session[]
+  vouchers         VoucherClaim[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model Session {
+  id                     String         @id @default(uuid())
+  title                  String         @default("Generative Sessions")
+  brandId                String
+  brand                  Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  sessionCreatedBy       String
+  waitingDurationSeconds Int            @default(30)
+  discountValue          String
+  couponCode             String
+  status                 String         @default("active") // upcoming, active, completed
+  totalVouchersPool      Int            @default(100)
+  claimedVouchersCount   Int            @default(0)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  claims                 VoucherClaim[]
+}
+
+model VoucherClaim {
+  id            String   @id @default(uuid())
+  code          String
+  brandId       String
+  brand         Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  sessionId     String
+  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  discountValue String
+  brandWebsite  String
+  categoryName  String
+  claimedAt     DateTime @default(now())
+  expiresAt     DateTime
+  isRedeemed    Boolean  @default(false)
+  userId        String?
+  terms         String?
+}
