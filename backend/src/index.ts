@@ -28,6 +28,71 @@ app.get('/health', async (_req: Request, res: Response) => {
 });
 
 // ----------------------------------------------------
+// 0. AUTH & USER PROFILES API (Live Supabase)
+// ----------------------------------------------------
+app.post('/api/auth/register', async (req: Request, res: Response) => {
+  try {
+    const { email, name, role = 'consumer' } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    let user = await prisma.user.findUnique({
+      where: { email: String(email).toLowerCase().trim() },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: String(email).toLowerCase().trim(),
+          name: name ? String(name).trim() : 'Zubix Member',
+          role: String(role),
+        },
+      });
+    }
+
+    res.status(201).json({
+      id: user.id,
+      email: user.email,
+      displayName: user.name || 'Zubix Member',
+      role: user.role,
+      createdAt: user.createdAt,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/login', async (req: Request, res: Response) => {
+  try {
+    const { email, name } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    let user = await prisma.user.findUnique({
+      where: { email: String(email).toLowerCase().trim() },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: String(email).toLowerCase().trim(),
+          name: name ? String(name).trim() : String(email).split('@')[0],
+          role: 'consumer',
+        },
+      });
+    }
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      displayName: user.name || 'Zubix Member',
+      role: user.role,
+      createdAt: user.createdAt,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ----------------------------------------------------
 // 1. CATEGORIES API (Live Supabase)
 // ----------------------------------------------------
 app.get('/api/categories', async (_req: Request, res: Response) => {
@@ -262,6 +327,7 @@ app.post('/api/sessions', async (req: Request, res: Response) => {
 app.post('/api/sessions/:id/claim', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
+    const { userId } = req.body;
     const session: any = await prisma.session.findUnique({
       where: { id },
       include: { brand: { include: { category: true } } },
@@ -286,6 +352,7 @@ app.post('/api/sessions/:id/claim', async (req: Request, res: Response) => {
         claimedAt: new Date(),
         expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         isRedeemed: false,
+        userId: userId ? String(userId) : null,
         terms: 'Official partner store discount. Redeemable at checkout.',
       },
     });
@@ -303,9 +370,13 @@ app.post('/api/sessions/:id/claim', async (req: Request, res: Response) => {
 // ----------------------------------------------------
 // 4. VOUCHERS API (Live Supabase)
 // ----------------------------------------------------
-app.get('/api/vouchers', async (_req: Request, res: Response) => {
+app.get('/api/vouchers', async (req: Request, res: Response) => {
   try {
+    const { userId } = req.query;
     const vouchers: any[] = await prisma.voucherClaim.findMany({
+      where: {
+        ...(userId ? { userId: String(userId) } : {}),
+      },
       include: { brand: true },
       orderBy: { claimedAt: 'desc' },
     });

@@ -14,6 +14,14 @@ class AppState extends ChangeNotifier {
   AppRole _currentRole = AppRole.consumer;
   AppRole get currentRole => _currentRole;
 
+  String? _currentUserId = 'usr_demo_01';
+  String? get currentUserId => _currentUserId;
+
+  void setCurrentUserId(String? id) {
+    _currentUserId = id;
+    initFromBackend();
+  }
+
   bool _isLoadingBackend = false;
   bool get isLoadingBackend => _isLoadingBackend;
 
@@ -43,7 +51,7 @@ class AppState extends ChangeNotifier {
         _sessions.addAll(remoteSessions);
       }
 
-      final remoteVouchers = await ApiService.getVouchers();
+      final remoteVouchers = await ApiService.getVouchers(userId: _currentUserId);
       if (remoteVouchers != null && remoteVouchers.isNotEmpty) {
         _myVouchers.clear();
         _myVouchers.addAll(remoteVouchers);
@@ -500,7 +508,10 @@ class AppState extends ChangeNotifier {
     // Try backend Supabase voucher claim first
     VoucherModel? serverVoucher;
     try {
-      serverVoucher = await ApiService.claimSessionVoucher(session.id);
+      serverVoucher = await ApiService.claimSessionVoucher(
+        session.id,
+        userId: _currentUserId,
+      );
     } catch (_) {}
 
     final finalVoucher = serverVoucher ?? VoucherModel(

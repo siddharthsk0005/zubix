@@ -219,6 +219,7 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
               OutlinedButton.icon(
                 onPressed: () {
                   ref.read(authProvider.notifier).signOut();
+                  widget.appState.setCurrentUserId(null);
                 },
                 icon: const Icon(Icons.logout, size: 16),
                 label: const Text('Sign Out'),
@@ -285,18 +286,30 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
               ElevatedButton(
                 onPressed: authState.isLoading
                     ? null
-                    : () {
+                    : () async {
                         if (_isSignUp) {
-                          ref.read(authProvider.notifier).signUp(
+                          final ok = await ref.read(authProvider.notifier).signUp(
                                 _nameController.text,
                                 _emailController.text,
                                 _passwordController.text,
                               );
+                          if (ok) {
+                            final user = ref.read(authProvider).user;
+                            if (user != null) {
+                              widget.appState.setCurrentUserId(user.id);
+                            }
+                          }
                         } else {
-                          ref.read(authProvider.notifier).signIn(
+                          final ok = await ref.read(authProvider.notifier).signIn(
                                 _emailController.text,
                                 _passwordController.text,
                               );
+                          if (ok) {
+                            final user = ref.read(authProvider).user;
+                            if (user != null) {
+                              widget.appState.setCurrentUserId(user.id);
+                            }
+                          }
                         }
                       },
                 style: ElevatedButton.styleFrom(

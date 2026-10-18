@@ -6,6 +6,7 @@ import '../models/category_model.dart';
 import '../models/brand_model.dart';
 import '../models/session_model.dart';
 import '../models/voucher_model.dart';
+import '../models/user_model.dart';
 
 class ApiService {
   static String get baseUrl {
@@ -29,6 +30,42 @@ class ApiService {
     } catch (_) {
       return false;
     }
+  }
+
+  // ---------------- AUTH (Supabase User Accounts) ----------------
+  static Future<UserModel?> register(String email, {String? name, String role = 'consumer'}) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          if (name != null) 'name': name,
+          'role': role,
+        }),
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        return UserModel.fromJson(jsonDecode(res.body));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<UserModel?> login(String email, {String? name}) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          if (name != null) 'name': name,
+        }),
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        return UserModel.fromJson(jsonDecode(res.body));
+      }
+    } catch (_) {}
+    return null;
   }
 
   // ---------------- CATEGORIES (Supabase CRUD) ----------------
@@ -211,10 +248,14 @@ class ApiService {
     return null;
   }
 
-  static Future<VoucherModel?> claimSessionVoucher(String sessionId) async {
+  static Future<VoucherModel?> claimSessionVoucher(String sessionId, {String? userId}) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/sessions/$sessionId/claim'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          if (userId != null) 'userId': userId,
+        }),
       ).timeout(const Duration(seconds: 4));
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -225,9 +266,13 @@ class ApiService {
   }
 
   // ---------------- VOUCHERS (Supabase Wallet) ----------------
-  static Future<List<VoucherModel>?> getVouchers() async {
+  static Future<List<VoucherModel>?> getVouchers({String? userId}) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/vouchers')).timeout(const Duration(seconds: 4));
+      var url = '$baseUrl/api/vouchers';
+      if (userId != null) {
+        url += '?userId=$userId';
+      }
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final List<dynamic> data = jsonDecode(res.body);
         return data.map((item) => VoucherModel.fromJson(item as Map<String, dynamic>)).toList();

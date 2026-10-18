@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
+import '../services/api_service.dart';
 
 class AuthState {
   final UserModel? user;
@@ -31,7 +32,6 @@ class AuthState {
 class AuthNotifier extends Notifier<AuthState> {
   @override
   AuthState build() {
-    // Initial signed-in demo member for immediate exploration
     return AuthState(
       user: UserModel(
         id: 'usr_demo_01',
@@ -42,36 +42,55 @@ class AuthNotifier extends Notifier<AuthState> {
     );
   }
 
-  Future<void> signIn(String email, String password) async {
+  Future<bool> signIn(String email, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
-    await Future.delayed(const Duration(milliseconds: 600));
 
     if (email.trim().isEmpty || password.trim().isEmpty) {
       state = state.copyWith(isLoading: false, errorMessage: 'Please enter both email and password.');
-      return;
+      return false;
     }
 
+    try {
+      final user = await ApiService.login(email.trim(), name: email.split('@').first);
+      if (user != null) {
+        state = AuthState(user: user, isLoading: false);
+        return true;
+      }
+    } catch (_) {}
+
+    // Fallback if offline
     final displayName = email.split('@').first;
     state = AuthState(
       user: UserModel(
         id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
         email: email.trim(),
-        displayName: displayName[0].toUpperCase() + displayName.substring(1),
+        displayName: displayName.isNotEmpty
+            ? displayName[0].toUpperCase() + displayName.substring(1)
+            : 'Zubix Member',
         role: 'consumer',
       ),
       isLoading: false,
     );
+    return true;
   }
 
-  Future<void> signUp(String name, String email, String password) async {
+  Future<bool> signUp(String name, String email, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
-    await Future.delayed(const Duration(milliseconds: 700));
 
     if (email.trim().isEmpty || password.length < 6) {
       state = state.copyWith(isLoading: false, errorMessage: 'Password must be at least 6 characters.');
-      return;
+      return false;
     }
 
+    try {
+      final user = await ApiService.register(email.trim(), name: name.trim().isEmpty ? null : name.trim());
+      if (user != null) {
+        state = AuthState(user: user, isLoading: false);
+        return true;
+      }
+    } catch (_) {}
+
+    // Fallback if offline
     state = AuthState(
       user: UserModel(
         id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
@@ -81,6 +100,7 @@ class AuthNotifier extends Notifier<AuthState> {
       ),
       isLoading: false,
     );
+    return true;
   }
 
   void signOut() {
