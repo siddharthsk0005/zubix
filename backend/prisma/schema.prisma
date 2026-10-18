@@ -34,6 +34,15 @@ model Brand {
   contactPhone     String
   sessionCreatedBy String         @default("Zubix Curators")
   isApproved       Boolean        @default(false)
+  isPhysicalStore  Boolean        @default(false)
+  storeType        String         @default("online_d2c") // "online_d2c" or "local_store"
+  city             String?
+  area             String?
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  googleMapsUrl    String?
+  timings          String?        @default("10:00 AM - 9:30 PM")
   categoryId       String
   category         Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   sessions         Session[]

@@ -369,18 +369,227 @@ app.delete('/api/categories/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Distance calculation helper (Haversine Formula)
+function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
 // ----------------------------------------------------
 // 2. BRANDS API (Live Supabase)
 // ----------------------------------------------------
+
+// Nearby Physical Stores & Boutiques
+app.get('/api/brands/nearby', async (req: Request, res: Response) => {
+  try {
+    const { city, lat, lng, radiusKm = 50 } = req.query;
+
+    // Check if we need to auto-seed local boutiques
+    const localStoreCount = await prisma.brand.count({
+      where: { isPhysicalStore: true },
+    });
+
+    if (localStoreCount === 0) {
+      // Find or create default categories
+      let cat = await prisma.category.findFirst();
+      if (!cat) {
+        cat = await prisma.category.create({
+          data: { name: 'Fashion and Lifestyle', slug: 'fashion-and-lifestyle', iconName: 'checkroom' },
+        });
+      }
+
+      await prisma.brand.createMany({
+        data: [
+          {
+            name: 'NOIR Coffee & Concept Atelier',
+            tagline: 'Artisan Pour-Overs & Monochrome Lifestyle Objects',
+            bio: 'A minimalist sanctuary serving single-origin Ethiopian beans alongside curated brutalist ceramics and Japanese paper goods.',
+            logoUrl: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=500&q=80',
+            showcaseImages: [
+              'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=1000&q=80',
+              'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1000&q=80',
+            ],
+            websiteUrl: 'https://noiratelier.example',
+            contactEmail: 'concierge@noiratelier.example',
+            contactPhone: '+91 80 4123 9901',
+            categoryId: cat.id,
+            isApproved: true,
+            isPhysicalStore: true,
+            storeType: 'local_store',
+            city: 'Bengaluru',
+            area: 'Indiranagar',
+            address: '12th Main Rd, HAL 2nd Stage, Indiranagar, Bengaluru, Karnataka 560038',
+            latitude: 12.9716,
+            longitude: 77.6412,
+            googleMapsUrl: 'https://maps.google.com/?q=Indiranagar+Bengaluru',
+            timings: '08:00 AM - 10:30 PM',
+            sessionCreatedBy: 'Boutique Curator',
+          },
+          {
+            name: 'THE LINE Menswear & Objects',
+            tagline: 'Architectural Silhouettes & Heavyweight Cotton',
+            bio: 'Physical flagship boutique showcasing unbranded luxury wardrobe staples, raw denim, and bespoke titanium accessories.',
+            logoUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=500&q=80',
+            showcaseImages: [
+              'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1000&q=80',
+              'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1000&q=80',
+            ],
+            websiteUrl: 'https://thelinestore.example',
+            contactEmail: 'bandra@thelinestore.example',
+            contactPhone: '+91 22 2640 8820',
+            categoryId: cat.id,
+            isApproved: true,
+            isPhysicalStore: true,
+            storeType: 'local_store',
+            city: 'Mumbai',
+            area: 'Bandra West',
+            address: 'Perry Cross Rd, Off Carter Road, Bandra West, Mumbai, Maharashtra 400050',
+            latitude: 19.0596,
+            longitude: 72.8295,
+            googleMapsUrl: 'https://maps.google.com/?q=Bandra+West+Mumbai',
+            timings: '11:00 AM - 09:30 PM',
+            sessionCreatedBy: 'Boutique Curator',
+          },
+          {
+            name: 'ATELIER 01 Scent & Leather',
+            tagline: 'Hand-Poured Soy Wax & Vegetable-Tanned Goods',
+            bio: 'Experiential studio blending custom cold-pressed perfumes with artisanal leather cardholders and travel bags.',
+            logoUrl: 'https://images.unsplash.com/photo-1547887537-6158d64c35b3?w=500&q=80',
+            showcaseImages: [
+              'https://images.unsplash.com/photo-1547887537-6158d64c35b3?w=1000&q=80',
+              'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=1000&q=80',
+            ],
+            websiteUrl: 'https://atelier01.example',
+            contactEmail: 'hello@atelier01.example',
+            contactPhone: '+91 141 400 9001',
+            categoryId: cat.id,
+            isApproved: true,
+            isPhysicalStore: true,
+            storeType: 'local_store',
+            city: 'Jaipur',
+            area: 'C-Scheme',
+            address: 'Subhash Marg, C-Scheme, Ashok Nagar, Jaipur, Rajasthan 302001',
+            latitude: 26.9124,
+            longitude: 75.7873,
+            googleMapsUrl: 'https://maps.google.com/?q=C-Scheme+Jaipur',
+            timings: '10:30 AM - 08:30 PM',
+            sessionCreatedBy: 'Boutique Curator',
+          },
+          {
+            name: 'KURA Avant-Garde Gallery & Retail',
+            tagline: 'Modernist Apparel & Japanese Craft',
+            bio: 'A heritage courtyard transformed into a high-fashion space featuring limited-run outerwear, titanium eyewear, and gallery prints.',
+            logoUrl: 'https://images.unsplash.com/photo-1511556532299-8f662fc26c06?w=500&q=80',
+            showcaseImages: [
+              'https://images.unsplash.com/photo-1511556532299-8f662fc26c06?w=1000&q=80',
+              'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1000&q=80',
+            ],
+            websiteUrl: 'https://kuragallery.example',
+            contactEmail: 'mehrauli@kuragallery.example',
+            contactPhone: '+91 11 2664 1200',
+            categoryId: cat.id,
+            isApproved: true,
+            isPhysicalStore: true,
+            storeType: 'local_store',
+            city: 'Delhi',
+            area: 'Mehrauli',
+            address: 'One Style Mile, Kalka Das Marg, Mehrauli, New Delhi, Delhi 110030',
+            latitude: 28.5245,
+            longitude: 77.1855,
+            googleMapsUrl: 'https://maps.google.com/?q=Mehrauli+New+Delhi',
+            timings: '11:00 AM - 09:00 PM',
+            sessionCreatedBy: 'Boutique Curator',
+          },
+        ],
+      });
+
+      // Create live active sessions for these local stores
+      const seededStores = await prisma.brand.findMany({ where: { isPhysicalStore: true } });
+      for (const store of seededStores) {
+        await prisma.session.create({
+          data: {
+            title: `${store.name} In-Store Generative Drop`,
+            brandId: store.id,
+            sessionCreatedBy: 'Boutique Store Manager',
+            waitingDurationSeconds: 15,
+            discountValue: '30% FLAT IN-STORE',
+            couponCode: `ZUBIX-LOCAL-${store.name.substring(0, 4).toUpperCase()}`,
+            status: 'active',
+            totalVouchersPool: 50,
+            claimedVouchersCount: 3,
+          },
+        });
+      }
+    }
+
+    const cityQuery = city ? String(city).trim() : null;
+    const userLat = lat ? parseFloat(String(lat)) : null;
+    const userLng = lng ? parseFloat(String(lng)) : null;
+    const maxRadius = parseFloat(String(radiusKm)) || 50;
+
+    let stores = await prisma.brand.findMany({
+      where: {
+        isPhysicalStore: true,
+        isApproved: true,
+      },
+      include: {
+        category: true,
+        sessions: {
+          where: { status: 'active' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Compute distance and filter
+    const enriched = stores.map((store) => {
+      let distanceKm: number | null = null;
+      if (userLat != null && userLng != null && store.latitude != null && store.longitude != null) {
+        distanceKm = getDistanceFromLatLonInKm(userLat, userLng, store.latitude, store.longitude);
+      } else if (cityQuery && store.city) {
+        const isMatch = store.city.toLowerCase().includes(cityQuery.toLowerCase()) ||
+          cityQuery.toLowerCase().includes(store.city.toLowerCase());
+        distanceKm = isMatch ? 1.5 : 8.5; // Estimated proximity for city matches
+      } else {
+        distanceKm = 2.4;
+      }
+      return {
+        ...store,
+        distanceKm,
+      };
+    });
+
+    // Sort by distance (closest first)
+    enriched.sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+
+    res.json(enriched);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/brands', async (req: Request, res: Response) => {
   try {
-    const { categoryId, approvedOnly } = req.query;
+    const { categoryId, approvedOnly, storeType } = req.query;
     const brands = await prisma.brand.findMany({
       where: {
         ...(categoryId ? { categoryId: String(categoryId) } : {}),
         ...(approvedOnly === 'true' ? { isApproved: true } : {}),
+        ...(storeType ? { storeType: String(storeType) } : {}),
       },
-      include: { category: true },
+      include: {
+        category: true,
+        sessions: {
+          where: { status: 'active' },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
     res.json(brands);
@@ -456,6 +665,15 @@ app.put('/api/brands/:id', async (req: Request, res: Response) => {
       contactEmail,
       contactPhone,
       categoryId,
+      isPhysicalStore,
+      storeType,
+      city,
+      area,
+      address,
+      latitude,
+      longitude,
+      googleMapsUrl,
+      timings,
     } = req.body;
 
     const updated = await prisma.brand.update({
@@ -471,9 +689,63 @@ app.put('/api/brands/:id', async (req: Request, res: Response) => {
         ...(contactEmail !== undefined && { contactEmail }),
         ...(contactPhone !== undefined && { contactPhone }),
         ...(categoryId !== undefined && { categoryId }),
+        ...(isPhysicalStore !== undefined && { isPhysicalStore }),
+        ...(storeType !== undefined && { storeType }),
+        ...(city !== undefined && { city }),
+        ...(area !== undefined && { area }),
+        ...(address !== undefined && { address }),
+        ...(latitude !== undefined && { latitude: Number(latitude) }),
+        ...(longitude !== undefined && { longitude: Number(longitude) }),
+        ...(googleMapsUrl !== undefined && { googleMapsUrl }),
+        ...(timings !== undefined && { timings }),
       },
     });
     res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/vouchers/verify-redeem', async (req: Request, res: Response) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Voucher code is required' });
+    }
+    const cleanCode = String(code).trim().toUpperCase();
+    const voucher = await prisma.voucherClaim.findFirst({
+      where: {
+        code: {
+          equals: cleanCode,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    if (!voucher) {
+      return res.status(404).json({ success: false, message: 'Invalid code. Voucher not found.' });
+    }
+
+    if (voucher.isRedeemed) {
+      return res.json({
+        success: false,
+        alreadyRedeemed: true,
+        voucher,
+        message: 'This voucher was ALREADY REDEEMED earlier.',
+      });
+    }
+
+    const updated = await prisma.voucherClaim.update({
+      where: { id: voucher.id },
+      data: { isRedeemed: true },
+    });
+
+    res.json({
+      success: true,
+      alreadyRedeemed: false,
+      voucher: updated,
+      message: 'Voucher verified & redeemed successfully at counter!',
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

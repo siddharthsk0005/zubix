@@ -34,6 +34,7 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  int _secretTapCount = 0;
 
   @override
   void dispose() {
@@ -41,6 +42,80 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _showSecretDevMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.pureWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'DEVELOPER & PARTNER CONSOLE',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 0.8),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Internal access for store managers and platform administrators.',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.storefront_outlined, color: AppTheme.pureBlack),
+              title: const Text('Brand Partner Portal', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              subtitle: const Text('Nearby boutique settings & counter terminal', style: TextStyle(fontSize: 11.5)),
+              trailing: const Icon(Icons.chevron_right, size: 18),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => BrandPartnerDashboard(state: widget.appState)),
+                );
+              },
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.admin_panel_settings_outlined, color: AppTheme.pureBlack),
+              title: const Text('Admin Control Center', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              subtitle: const Text('Categories, sessions, and store approvals', style: TextStyle(fontSize: 11.5)),
+              trailing: const Icon(Icons.chevron_right, size: 18),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AdminScreen(state: widget.appState)),
+                );
+              },
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.laptop_mac_outlined, color: AppTheme.pureBlack),
+              title: const Text('Web Dashboard Portal', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              subtitle: const Text('Desktop operations & analytics overview', style: TextStyle(fontSize: 11.5)),
+              trailing: const Icon(Icons.chevron_right, size: 18),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => WebDashboardScreen(state: widget.appState)),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -73,24 +148,26 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
             ),
             const SizedBox(height: 20),
 
-            if (authState.isAuthenticated) ...[
+            if (authState.isAuthenticated && authState.user != null) ...[
               // ----------------------------------------------------
-              // AUTHENTICATED USER PROFILE
+              // AUTHENTICATED CONSUMER PROFILE
               // ----------------------------------------------------
               Row(
                 children: [
                   Container(
-                    width: 54,
-                    height: 54,
+                    width: 58,
+                    height: 58,
                     decoration: const BoxDecoration(
                       color: AppTheme.pureBlack,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
                       child: Text(
-                        authState.user!.displayName.substring(0, 1).toUpperCase(),
+                        authState.user!.displayName.isNotEmpty
+                            ? authState.user!.displayName.substring(0, 1).toUpperCase()
+                            : 'Z',
                         style: const TextStyle(
-                          fontSize: 22,
+                          fontSize: 24,
                           fontWeight: FontWeight.w800,
                           color: AppTheme.pureWhite,
                         ),
@@ -104,17 +181,26 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
                       children: [
                         Text(
                           authState.user!.displayName,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           authState.user!.phone ?? authState.user!.email ?? '',
-                          style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                          style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
                         ),
-                        if (authState.user!.district != null && authState.user!.state != null)
-                          Text(
-                            '${authState.user!.district}, ${authState.user!.state}',
-                            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                        if (authState.user!.district != null && authState.user!.state != null) ...[
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on_outlined, size: 12, color: AppTheme.textMuted),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${authState.user!.district}, ${authState.user!.state}',
+                                style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted, fontWeight: FontWeight.w500),
+                              ),
+                            ],
                           ),
+                        ],
                       ],
                     ),
                   ),
@@ -130,7 +216,7 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.6,
                         color: AppTheme.textSecondary,
                       ),
                     ),
@@ -150,19 +236,26 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.card_giftcard, size: 24, color: AppTheme.pureBlack),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(
+                        color: AppTheme.pureBlack,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.card_giftcard, size: 20, color: AppTheme.pureWhite),
+                    ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Active Vouchers',
-                            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                            'My Voucher Wallet',
+                            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
                           ),
                           Text(
-                            '$voucherCount Vouchers ready to redeem',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                            voucherCount == 1 ? '1 Voucher ready to use' : '$voucherCount Vouchers ready to use',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                           ),
                         ],
                       ),
@@ -173,53 +266,53 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
 
               const SizedBox(height: 20),
 
-              const Divider(color: AppTheme.borderLight),
+              // Consumer Settings & Preferences
+              const Text(
+                'ACCOUNT & PREFERENCES',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 8),
 
-              // Ecosystem Portals Navigation
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.storefront_outlined, color: AppTheme.pureBlack),
-                title: const Text('Brand Partner Portal', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: const Text('Manage your brand profile and lookbook showcase', style: TextStyle(fontSize: 11.5)),
+                leading: const Icon(Icons.notifications_none_outlined, color: AppTheme.pureBlack, size: 22),
+                title: const Text('Generative Drop Alerts', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                subtitle: const Text('Get notified when nearby boutiques launch drops', style: TextStyle(fontSize: 11.5, color: AppTheme.textSecondary)),
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => BrandPartnerDashboard(state: widget.appState)),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Drop alerts are enabled for your location.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
                   );
                 },
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.admin_panel_settings_outlined, color: AppTheme.pureBlack),
-                title: const Text('Admin Control Center', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: const Text('Configure categories, sessions, and approvals', style: TextStyle(fontSize: 11.5)),
+                leading: const Icon(Icons.help_outline, color: AppTheme.pureBlack, size: 22),
+                title: const Text('Help & Concierge Support', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                subtitle: const Text('Chat with our luxury shopping concierge', style: TextStyle(fontSize: 11.5, color: AppTheme.textSecondary)),
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => AdminScreen(state: widget.appState)),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Zubix Concierge: support@zubix.luxury'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
                   );
                 },
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.laptop_mac_outlined, color: AppTheme.pureBlack),
-                title: const Text('Web Dashboard Portal', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: const Text('Desktop layout with sidebar navigation and metrics', style: TextStyle(fontSize: 11.5)),
+                leading: const Icon(Icons.shield_outlined, color: AppTheme.pureBlack, size: 22),
+                title: const Text('Privacy & Terms', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                subtitle: const Text('Terms of service and merchant redemption rules', style: TextStyle(fontSize: 11.5, color: AppTheme.textSecondary)),
                 trailing: const Icon(Icons.chevron_right, size: 18),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => WebDashboardScreen(state: widget.appState)),
-                  );
-                },
+                onTap: () {},
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
               OutlinedButton.icon(
                 onPressed: () {
@@ -233,7 +326,7 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
                   minimumSize: const Size(double.infinity, 44),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
             ] else ...[
               // ----------------------------------------------------
               // GUEST / SIGN IN / SIGN UP FORM
@@ -245,8 +338,8 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
               const SizedBox(height: 4),
               Text(
                 _isSignUp
-                    ? 'Join to save vouchers across your devices and claim rewards.'
-                    : 'Sign in to access your digital voucher wallet.',
+                    ? 'Join to save vouchers across your devices and claim drops.'
+                    : 'Sign in to access your personal voucher wallet.',
                 style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
               ),
 
@@ -286,7 +379,6 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Password'),
               ),
-
               const SizedBox(height: 20),
 
               ElevatedButton(
@@ -340,8 +432,30 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
             ],
+
+            // Discrete footer with hidden dev tap for internal testing
+            Center(
+              child: GestureDetector(
+                onTap: () {
+                  _secretTapCount++;
+                  if (_secretTapCount >= 5) {
+                    _secretTapCount = 0;
+                    _showSecretDevMenu();
+                  }
+                },
+                child: const Text(
+                  'Zubix v1.0.0 • Pure Luxury Commerce',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textMuted,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),

@@ -232,6 +232,29 @@ class ApiService {
     return null;
   }
 
+  static Future<List<BrandModel>?> getNearbyStores({
+    String? city,
+    double? lat,
+    double? lng,
+    double radiusKm = 50,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        if (lat != null) 'lat': lat.toString(),
+        if (lng != null) 'lng': lng.toString(),
+        'radiusKm': radiusKm.toString(),
+      };
+      final uri = Uri.parse('$baseUrl/api/brands/nearby').replace(queryParameters: queryParams);
+      final res = await http.get(uri).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(res.body);
+        return data.map((item) => BrandModel.fromJson(item as Map<String, dynamic>)).toList();
+      }
+    } catch (_) {}
+    return null;
+  }
+
   static Future<BrandModel?> createBrand({
     required String name,
     String tagline = '',
@@ -386,6 +409,19 @@ class ApiService {
       return res.statusCode == 200;
     } catch (_) {
       return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> verifyAndRedeemVoucher(String code) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/vouchers/verify-redeem'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'code': code.trim()}),
+      ).timeout(const Duration(seconds: 4));
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
     }
   }
 }

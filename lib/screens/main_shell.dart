@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import 'discover_screen.dart';
+import 'nearby_screen.dart';
 import 'generative_session_screen.dart';
 import 'vouchers_screen.dart';
 
@@ -24,15 +25,19 @@ class _MainShellState extends State<MainShell> {
     final screens = [
       DiscoverScreen(
         state: widget.state,
-        onNavigateToSessions: () => setState(() => _currentIndex = 1),
+        onNavigateToSessions: () => setState(() => _currentIndex = 2),
+      ),
+      NearbyScreen(
+        state: widget.state,
+        onNavigateToSessions: () => setState(() => _currentIndex = 2),
       ),
       GenerativeSessionScreen(
         state: widget.state,
-        onNavigateToVouchers: () => setState(() => _currentIndex = 2),
+        onNavigateToVouchers: () => setState(() => _currentIndex = 3),
       ),
       VouchersScreen(
         state: widget.state,
-        onExploreSessions: () => setState(() => _currentIndex = 1),
+        onExploreSessions: () => setState(() => _currentIndex = 2),
       ),
     ];
 
@@ -53,12 +58,23 @@ class _MainShellState extends State<MainShell> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppTheme.pureWhite,
+          selectedItemColor: AppTheme.pureBlack,
+          unselectedItemColor: AppTheme.textSecondary,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
           onTap: (index) => setState(() => _currentIndex = index),
           items: [
             const BottomNavigationBarItem(
               icon: Icon(Icons.explore_outlined),
               activeIcon: Icon(Icons.explore),
               label: 'Discover',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.near_me_outlined),
+              activeIcon: Icon(Icons.near_me),
+              label: 'Nearby',
             ),
             BottomNavigationBarItem(
               icon: Stack(

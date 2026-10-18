@@ -56,8 +56,147 @@ class AppState extends ChangeNotifier {
         _myVouchers.clear();
         _myVouchers.addAll(remoteVouchers);
       }
+
+      await fetchNearbyStores();
     } catch (_) {}
     _isLoadingBackend = false;
+    notifyListeners();
+  }
+
+  // ----------------------------------------------------
+  // NEARBY LOCAL STORES & LOCATION
+  // ----------------------------------------------------
+  String _selectedCity = 'Indiranagar, Bengaluru';
+  String get selectedCity => _selectedCity;
+
+  final List<BrandModel> _nearbyStores = [];
+  List<BrandModel> get nearbyStores => _nearbyStores;
+
+  bool _isLoadingNearby = false;
+  bool get isLoadingNearby => _isLoadingNearby;
+
+  void setSelectedCity(String city) {
+    if (_selectedCity == city.trim()) return;
+    _selectedCity = city.trim();
+    fetchNearbyStores();
+  }
+
+  Future<void> fetchNearbyStores() async {
+    _isLoadingNearby = true;
+    notifyListeners();
+
+    try {
+      final cityName = _selectedCity.split(',').last.trim();
+      final remoteNearby = await ApiService.getNearbyStores(city: cityName);
+      if (remoteNearby != null && remoteNearby.isNotEmpty) {
+        _nearbyStores.clear();
+        _nearbyStores.addAll(remoteNearby);
+
+        // Also ensure their sessions exist in _sessions pool so countdown works
+        for (final store in remoteNearby) {
+          final existing = _sessions.any((s) => s.brandId == store.id);
+          if (!existing) {
+            _sessions.add(
+              SessionModel(
+                id: 'sess_local_${store.id}',
+                title: '${store.name} In-Store Drop',
+                brandId: store.id,
+                sessionCreatedBy: store.sessionCreatedBy,
+                waitingDurationSeconds: 15,
+                discountValue: '30% FLAT IN-STORE',
+                couponCode: 'ZUBIX-LOCAL-${store.name.substring(0, 4).toUpperCase()}',
+                status: 'active',
+                totalVouchersPool: 50,
+                claimedVouchersCount: 4,
+              ),
+            );
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Fallback if offline / empty
+    if (_nearbyStores.isEmpty) {
+      _nearbyStores.addAll([
+        BrandModel(
+          id: 'local_noir_01',
+          name: 'NOIR Coffee & Concept Atelier',
+          tagline: 'Artisan Pour-Overs & Monochrome Lifestyle Objects',
+          bio: 'A minimalist sanctuary serving single-origin Ethiopian beans alongside curated brutalist ceramics and Japanese paper goods.',
+          logoUrl: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=500&q=80',
+          showcaseImages: [
+            'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=1000&q=80',
+            'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1000&q=80',
+          ],
+          websiteUrl: 'https://noiratelier.example',
+          socialLinks: {'Instagram': 'https://instagram.com/noiratelier'},
+          contactEmail: 'concierge@noiratelier.example',
+          contactPhone: '+91 80 4123 9901',
+          categoryId: 'cat_fashion',
+          isApproved: true,
+          isPhysicalStore: true,
+          storeType: 'local_store',
+          city: 'Bengaluru',
+          area: 'Indiranagar',
+          address: '12th Main Rd, Indiranagar, Bengaluru, 560038',
+          distanceKm: 0.8,
+          googleMapsUrl: 'https://maps.google.com/?q=Indiranagar+Bengaluru',
+          timings: '08:00 AM - 10:30 PM',
+        ),
+        BrandModel(
+          id: 'local_theline_02',
+          name: 'THE LINE Menswear & Objects',
+          tagline: 'Architectural Silhouettes & Heavyweight Cotton',
+          bio: 'Physical flagship boutique showcasing unbranded luxury wardrobe staples, raw denim, and bespoke titanium accessories.',
+          logoUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=500&q=80',
+          showcaseImages: [
+            'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1000&q=80',
+            'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1000&q=80',
+          ],
+          websiteUrl: 'https://thelinestore.example',
+          socialLinks: {'Instagram': 'https://instagram.com/thelinestore'},
+          contactEmail: 'bandra@thelinestore.example',
+          contactPhone: '+91 22 2640 8820',
+          categoryId: 'cat_fashion',
+          isApproved: true,
+          isPhysicalStore: true,
+          storeType: 'local_store',
+          city: 'Mumbai',
+          area: 'Bandra West',
+          address: 'Perry Cross Rd, Bandra West, Mumbai, 400050',
+          distanceKm: 1.4,
+          googleMapsUrl: 'https://maps.google.com/?q=Bandra+West+Mumbai',
+          timings: '11:00 AM - 09:30 PM',
+        ),
+        BrandModel(
+          id: 'local_atelier_03',
+          name: 'ATELIER 01 Scent & Leather',
+          tagline: 'Hand-Poured Soy Wax & Vegetable-Tanned Goods',
+          bio: 'Experiential studio blending custom cold-pressed perfumes with artisanal leather cardholders and travel bags.',
+          logoUrl: 'https://images.unsplash.com/photo-1547887537-6158d64c35b3?w=500&q=80',
+          showcaseImages: [
+            'https://images.unsplash.com/photo-1547887537-6158d64c35b3?w=1000&q=80',
+            'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=1000&q=80',
+          ],
+          websiteUrl: 'https://atelier01.example',
+          socialLinks: {'Instagram': 'https://instagram.com/atelier01'},
+          contactEmail: 'hello@atelier01.example',
+          contactPhone: '+91 141 400 9001',
+          categoryId: 'cat_beauty',
+          isApproved: true,
+          isPhysicalStore: true,
+          storeType: 'local_store',
+          city: 'Jaipur',
+          area: 'C-Scheme',
+          address: 'Subhash Marg, C-Scheme, Jaipur, 302001',
+          distanceKm: 2.1,
+          googleMapsUrl: 'https://maps.google.com/?q=C-Scheme+Jaipur',
+          timings: '10:30 AM - 08:30 PM',
+        ),
+      ]);
+    }
+
+    _isLoadingNearby = false;
     notifyListeners();
   }
 
@@ -327,23 +466,81 @@ class AppState extends ChangeNotifier {
     final idx = _brands.indexWhere((b) => b.id == brand.id);
     if (idx != -1) {
       _brands[idx] = brand;
-      notifyListeners();
-
-      try {
-        await ApiService.updateBrand(brand.id, {
-          'name': brand.name,
-          'tagline': brand.tagline,
-          'bio': brand.bio,
-          'logoUrl': brand.logoUrl,
-          'showcaseImages': brand.showcaseImages,
-          'websiteUrl': brand.websiteUrl,
-          'socialLinks': brand.socialLinks,
-          'contactEmail': brand.contactEmail,
-          'contactPhone': brand.contactPhone,
-          'categoryId': brand.categoryId,
-        });
-      } catch (_) {}
     }
+
+    final nIdx = _nearbyStores.indexWhere((b) => b.id == brand.id);
+    if (nIdx != -1) {
+      _nearbyStores[nIdx] = brand;
+    } else if (brand.isPhysicalStore) {
+      _nearbyStores.add(brand);
+    }
+    notifyListeners();
+
+    try {
+      await ApiService.updateBrand(brand.id, {
+        'name': brand.name,
+        'tagline': brand.tagline,
+        'bio': brand.bio,
+        'logoUrl': brand.logoUrl,
+        'showcaseImages': brand.showcaseImages,
+        'websiteUrl': brand.websiteUrl,
+        'socialLinks': brand.socialLinks,
+        'contactEmail': brand.contactEmail,
+        'contactPhone': brand.contactPhone,
+        'categoryId': brand.categoryId,
+        'isPhysicalStore': brand.isPhysicalStore,
+        'storeType': brand.storeType,
+        'city': brand.city,
+        'area': brand.area,
+        'address': brand.address,
+        'googleMapsUrl': brand.googleMapsUrl,
+        'timings': brand.timings,
+        'latitude': brand.latitude,
+        'longitude': brand.longitude,
+      });
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>> verifyAndRedeemCounterVoucher(String code) async {
+    final cleanCode = code.trim().toUpperCase();
+
+    // 1. Check local in-memory wallet
+    final localIdx = _myVouchers.indexWhere((v) => v.code.toUpperCase() == cleanCode);
+    if (localIdx != -1) {
+      if (_myVouchers[localIdx].isRedeemed) {
+        return {
+          'success': false,
+          'alreadyRedeemed': true,
+          'message': 'This voucher was already redeemed previously!',
+          'voucher': _myVouchers[localIdx],
+        };
+      }
+      _myVouchers[localIdx].isRedeemed = true;
+      notifyListeners();
+    }
+
+    // 2. Call remote Supabase database verification
+    try {
+      final remoteRes = await ApiService.verifyAndRedeemVoucher(cleanCode);
+      if (remoteRes != null) {
+        return remoteRes;
+      }
+    } catch (_) {}
+
+    if (localIdx != -1) {
+      return {
+        'success': true,
+        'alreadyRedeemed': false,
+        'message': 'Voucher verified & redeemed successfully at store counter!',
+        'voucher': _myVouchers[localIdx],
+      };
+    }
+
+    return {
+      'success': false,
+      'alreadyRedeemed': false,
+      'message': 'Invalid voucher code. Not found in system.',
+    };
   }
 
   Future<void> approveBrand(String brandId, bool approve) async {
@@ -403,6 +600,35 @@ class AppState extends ChangeNotifier {
     try {
       return _sessions.firstWhere((s) => s.brandId == brandId && s.status == 'active');
     } catch (_) {
+      BrandModel? brand;
+      try {
+        brand = _brands.firstWhere((b) => b.id == brandId);
+      } catch (_) {
+        try {
+          brand = _nearbyStores.firstWhere((b) => b.id == brandId);
+        } catch (_) {
+          brand = null;
+        }
+      }
+
+      if (brand != null) {
+        final clean = brand.name.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
+        final prefix = clean.length >= 4 ? clean.substring(0, 4) : 'DROP';
+        final newSession = SessionModel(
+          id: 'sess_auto_${brand.id}',
+          title: '${brand.name} Generative Drop',
+          brandId: brand.id,
+          sessionCreatedBy: brand.sessionCreatedBy,
+          waitingDurationSeconds: 15,
+          discountValue: brand.isPhysicalStore ? '30% FLAT IN-STORE' : '25% FLAT OFF',
+          couponCode: 'ZUBIX-$prefix-30',
+          status: 'active',
+          totalVouchersPool: 100,
+          claimedVouchersCount: 12,
+        );
+        _sessions.add(newSession);
+        return newSession;
+      }
       return null;
     }
   }
