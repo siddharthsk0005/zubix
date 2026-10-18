@@ -334,6 +334,10 @@ app.put('/api/vouchers/:id/redeem', async (req: Request, res: Response) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`[Zubix Backend] Connected to Supabase & running on http://localhost:${port}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`[Zubix Backend] Connected to Supabase & running on http://localhost:${port}`);
+  });
+}
+
+export default app;

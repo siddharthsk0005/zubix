@@ -9,11 +9,17 @@ import '../models/voucher_model.dart';
 
 class ApiService {
   static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:4000';
-    if (defaultTargetPlatform == TargetPlatform.android) {
+    if (kIsWeb) {
+      if (kDebugMode) return 'http://localhost:4000';
+      return Uri.base.origin;
+    }
+    if (kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
       return 'http://10.0.2.2:4000'; // Android emulator to host machine mapping
     }
-    return 'http://localhost:4000'; // iOS simulator or desktop
+    if (kDebugMode) {
+      return 'http://localhost:4000'; // iOS simulator or desktop
+    }
+    return 'https://www.zubixapp.com'; // Production mobile app hits live domain
   }
 
   static Future<bool> checkHealth() async {
