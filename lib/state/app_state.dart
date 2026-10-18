@@ -4,6 +4,7 @@ import '../models/category_model.dart';
 import '../models/brand_model.dart';
 import '../models/session_model.dart';
 import '../models/voucher_model.dart';
+import '../services/api_service.dart';
 
 enum AppRole { consumer, admin, brand }
 
@@ -12,6 +13,45 @@ enum SessionParticipationStatus { idle, waiting, completed }
 class AppState extends ChangeNotifier {
   AppRole _currentRole = AppRole.consumer;
   AppRole get currentRole => _currentRole;
+
+  bool _isLoadingBackend = false;
+  bool get isLoadingBackend => _isLoadingBackend;
+
+  AppState() {
+    initFromBackend();
+  }
+
+  Future<void> initFromBackend() async {
+    _isLoadingBackend = true;
+    notifyListeners();
+    try {
+      final remoteCategories = await ApiService.getCategories();
+      if (remoteCategories != null && remoteCategories.isNotEmpty) {
+        _categories.clear();
+        _categories.addAll(remoteCategories);
+      }
+
+      final remoteBrands = await ApiService.getBrands(approvedOnly: false);
+      if (remoteBrands != null && remoteBrands.isNotEmpty) {
+        _brands.clear();
+        _brands.addAll(remoteBrands);
+      }
+
+      final remoteSessions = await ApiService.getAllSessions();
+      if (remoteSessions != null && remoteSessions.isNotEmpty) {
+        _sessions.clear();
+        _sessions.addAll(remoteSessions);
+      }
+
+      final remoteVouchers = await ApiService.getVouchers();
+      if (remoteVouchers != null && remoteVouchers.isNotEmpty) {
+        _myVouchers.clear();
+        _myVouchers.addAll(remoteVouchers);
+      }
+    } catch (_) {}
+    _isLoadingBackend = false;
+    notifyListeners();
+  }
 
   void setRole(AppRole role) {
     _currentRole = role;
@@ -70,20 +110,32 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addCategory(String name, {String iconName = 'category'}) {
-    final newId = 'cat_${DateTime.now().millisecondsSinceEpoch}';
+  Future<void> addCategory(String name, {String iconName = 'category'}) async {
+    final tempId = 'cat_${DateTime.now().millisecondsSinceEpoch}';
     final slug = name.toLowerCase().replaceAll(' ', '-').replaceAll('&', 'and');
-    _categories.add(CategoryModel(
-      id: newId,
+    final localCat = CategoryModel(
+      id: tempId,
       name: name,
       slug: slug,
       iconName: iconName,
       displayOrder: _categories.length + 1,
-    ));
+    );
+    _categories.add(localCat);
     notifyListeners();
+
+    try {
+      final created = await ApiService.createCategory(name, iconName: iconName);
+      if (created != null) {
+        final idx = _categories.indexWhere((c) => c.id == tempId);
+        if (idx != -1) {
+          _categories[idx] = created;
+          notifyListeners();
+        }
+      }
+    } catch (_) {}
   }
 
-  void updateCategory(String id, String newName, {bool? isActive}) {
+  Future<void> updateCategory(String id, String newName, {bool? isActive}) async {
     final index = _categories.indexWhere((c) => c.id == id);
     if (index != -1) {
       _categories[index].name = newName;
@@ -91,15 +143,23 @@ class AppState extends ChangeNotifier {
         _categories[index].isActive = isActive;
       }
       notifyListeners();
+
+      try {
+        await ApiService.updateCategory(id, name: newName, isActive: isActive);
+      } catch (_) {}
     }
   }
 
-  void removeCategory(String id) {
+  Future<void> removeCategory(String id) async {
     _categories.removeWhere((c) => c.id == id);
     if (_selectedCategoryId == id && _categories.isNotEmpty) {
       _selectedCategoryId = _categories.first.id;
     }
     notifyListeners();
+
+    try {
+      await ApiService.deleteCategory(id);
+    } catch (_) {}
   }
 
   // ----------------------------------------------------
@@ -227,16 +287,66 @@ class AppState extends ChangeNotifier {
     return _brands.where((b) => b.categoryId == catId && b.isApproved).toList();
   }
 
-  void addBrand(BrandModel brand) {
+  Future<void> addBrand(BrandModel brand) async {
     _brands.add(brand);
     notifyListeners();
+
+    try {
+      final created = await ApiService.createBrand(
+        name: brand.name,
+        tagline: brand.tagline,
+        bio: brand.bio,
+        logoUrl: brand.logoUrl,
+        showcaseImages: brand.showcaseImages,
+        websiteUrl: brand.websiteUrl,
+        socialLinks: brand.socialLinks,
+        contactEmail: brand.contactEmail,
+        contactPhone: brand.contactPhone,
+        categoryId: brand.categoryId,
+        sessionCreatedBy: brand.sessionCreatedBy,
+      );
+      if (created != null) {
+        final idx = _brands.indexWhere((b) => b.id == brand.id);
+        if (idx != -1) {
+          _brands[idx] = created;
+          notifyListeners();
+        }
+      }
+    } catch (_) {}
   }
 
-  void approveBrand(String brandId, bool approve) {
+  Future<void> updateBrand(BrandModel brand) async {
+    final idx = _brands.indexWhere((b) => b.id == brand.id);
+    if (idx != -1) {
+      _brands[idx] = brand;
+      notifyListeners();
+
+      try {
+        await ApiService.updateBrand(brand.id, {
+          'name': brand.name,
+          'tagline': brand.tagline,
+          'bio': brand.bio,
+          'logoUrl': brand.logoUrl,
+          'showcaseImages': brand.showcaseImages,
+          'websiteUrl': brand.websiteUrl,
+          'socialLinks': brand.socialLinks,
+          'contactEmail': brand.contactEmail,
+          'contactPhone': brand.contactPhone,
+          'categoryId': brand.categoryId,
+        });
+      } catch (_) {}
+    }
+  }
+
+  Future<void> approveBrand(String brandId, bool approve) async {
     final idx = _brands.indexWhere((b) => b.id == brandId);
     if (idx != -1) {
       _brands[idx].isApproved = approve;
       notifyListeners();
+
+      try {
+        await ApiService.approveBrand(brandId, approve);
+      } catch (_) {}
     }
   }
 
@@ -289,9 +399,27 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void addSession(SessionModel session) {
+  Future<void> addSession(SessionModel session) async {
     _sessions.add(session);
     notifyListeners();
+
+    try {
+      final created = await ApiService.createSession(
+        brandId: session.brandId,
+        sessionCreatedBy: session.sessionCreatedBy,
+        waitingDurationSeconds: session.waitingDurationSeconds,
+        discountValue: session.discountValue,
+        couponCode: session.couponCode,
+        totalVouchersPool: session.totalVouchersPool,
+      );
+      if (created != null) {
+        final idx = _sessions.indexWhere((s) => s.id == session.id);
+        if (idx != -1) {
+          _sessions[idx] = created;
+          notifyListeners();
+        }
+      }
+    } catch (_) {}
   }
 
   void updateSession(SessionModel session) {
@@ -361,7 +489,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _completeSessionAndUnlockVoucher() {
+  Future<void> _completeSessionAndUnlockVoucher() async {
     if (_activeParticipatingSession == null || _activeParticipatingBrand == null) return;
 
     final session = _activeParticipatingSession!;
@@ -369,7 +497,13 @@ class AppState extends ChangeNotifier {
 
     session.claimedVouchersCount++;
 
-    final newVoucher = VoucherModel(
+    // Try backend Supabase voucher claim first
+    VoucherModel? serverVoucher;
+    try {
+      serverVoucher = await ApiService.claimSessionVoucher(session.id);
+    } catch (_) {}
+
+    final finalVoucher = serverVoucher ?? VoucherModel(
       id: 'vouch_${DateTime.now().millisecondsSinceEpoch}',
       code: session.couponCode,
       brandName: brand.name,
@@ -382,8 +516,8 @@ class AppState extends ChangeNotifier {
       terms: 'Valid on official store checkout. Single-use per account.',
     );
 
-    _myVouchers.insert(0, newVoucher);
-    _latestUnlockedVoucher = newVoucher;
+    _myVouchers.insert(0, finalVoucher);
+    _latestUnlockedVoucher = finalVoucher;
     _participationStatus = SessionParticipationStatus.completed;
     notifyListeners();
   }
@@ -415,11 +549,15 @@ class AppState extends ChangeNotifier {
 
   List<VoucherModel> get myVouchers => _myVouchers;
 
-  void markVoucherRedeemed(String voucherId) {
+  Future<void> markVoucherRedeemed(String voucherId) async {
     final idx = _myVouchers.indexWhere((v) => v.id == voucherId);
     if (idx != -1) {
       _myVouchers[idx].isRedeemed = true;
       notifyListeners();
+
+      try {
+        await ApiService.redeemVoucher(voucherId);
+      } catch (_) {}
     }
   }
 

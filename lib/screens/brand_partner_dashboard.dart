@@ -229,6 +229,8 @@ class _BrandPartnerDashboardState extends State<BrandPartnerDashboard> {
                 _selectedBrand.contactEmail = _emailController.text.trim();
                 _selectedBrand.contactPhone = _phoneController.text.trim();
 
+                widget.state.updateBrand(_selectedBrand);
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Brand Profile Updated Successfully!'),

@@ -82,6 +82,16 @@ app.put('/api/categories/:id', async (req: Request, res: Response) => {
   }
 });
 
+app.delete('/api/categories/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await prisma.category.delete({ where: { id } });
+    res.json({ success: true, message: 'Category deleted' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ----------------------------------------------------
 // 2. BRANDS API (Live Supabase)
 // ----------------------------------------------------
@@ -155,9 +165,58 @@ app.put('/api/brands/:id/approve', async (req: Request, res: Response) => {
   }
 });
 
+app.put('/api/brands/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      tagline,
+      bio,
+      logoUrl,
+      showcaseImages,
+      websiteUrl,
+      socialLinks,
+      contactEmail,
+      contactPhone,
+      categoryId,
+    } = req.body;
+
+    const updated = await prisma.brand.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(tagline !== undefined && { tagline }),
+        ...(bio !== undefined && { bio }),
+        ...(logoUrl !== undefined && { logoUrl }),
+        ...(showcaseImages !== undefined && { showcaseImages }),
+        ...(websiteUrl !== undefined && { websiteUrl }),
+        ...(socialLinks !== undefined && { socialLinks }),
+        ...(contactEmail !== undefined && { contactEmail }),
+        ...(contactPhone !== undefined && { contactPhone }),
+        ...(categoryId !== undefined && { categoryId }),
+      },
+    });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ----------------------------------------------------
 // 3. GENERATIVE SESSIONS API (Live Supabase)
 // ----------------------------------------------------
+app.get('/api/sessions', async (_req: Request, res: Response) => {
+  try {
+    const sessions = await prisma.session.findMany({
+      include: { brand: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(sessions);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/sessions/active', async (_req: Request, res: Response) => {
   try {
     const active = await prisma.session.findMany({
