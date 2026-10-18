@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/voucher_model.dart';
 import '../theme/app_theme.dart';
+import 'barcode_qr_display.dart';
 
 class VoucherTicket extends StatelessWidget {
   final VoucherModel voucher;
@@ -305,6 +306,28 @@ class VoucherTicket extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
+                    // In-Store Scan Modal Button
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        BarcodeQrDisplay.showModal(
+                          context,
+                          code: voucher.code,
+                          brandName: voucher.brandName,
+                          discountValue: voucher.discountValue,
+                        );
+                      },
+                      icon: const Icon(Icons.qr_code_2, size: 14, color: AppTheme.pureBlack),
+                      label: const Text('In-Store Scan'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        side: const BorderSide(color: AppTheme.borderLight),
+                        textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppTheme.pureBlack),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     // Shop on Website Button
                     ElevatedButton.icon(
                       onPressed: () => _launchStore(context),
@@ -313,11 +336,11 @@ class VoucherTicket extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.pureBlack,
                         foregroundColor: AppTheme.pureWhite,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
