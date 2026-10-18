@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../providers/vouchers_provider.dart';
 import '../screens/admin_screen.dart';
 import '../screens/brand_partner_dashboard.dart';
+import '../screens/web_dashboard_screen.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 
@@ -195,6 +196,20 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => AdminScreen(state: widget.appState)),
+                  );
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.laptop_mac_outlined, color: AppTheme.pureBlack),
+                title: const Text('Web Dashboard Portal', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: const Text('Desktop layout with sidebar navigation and metrics', style: TextStyle(fontSize: 11.5)),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => WebDashboardScreen(state: widget.appState)),
                   );
                 },
               ),
