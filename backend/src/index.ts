@@ -30,6 +30,212 @@ app.get('/health', async (_req: Request, res: Response) => {
 // ----------------------------------------------------
 // 0. AUTH & USER PROFILES API (Live Supabase)
 // ----------------------------------------------------
+
+// Send OTP (Demo OTP: 9001)
+app.post('/api/auth/send-otp', async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || String(phone).trim().length < 7) {
+      return res.status(400).json({ error: 'Valid mobile number is required' });
+    }
+    const cleanPhone = String(phone).trim();
+    // In production, an SMS gateway (Twilio, MSG91, Firebase) would dispatch this.
+    // For demo/testing: 9001
+    return res.json({
+      success: true,
+      message: 'OTP dispatched successfully. Use demo code 9001.',
+      demoOtp: '9001',
+      phone: cleanPhone,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Verify OTP & Login / Pre-Register
+app.post('/api/auth/verify-otp', async (req: Request, res: Response) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Mobile number is required' });
+    if (!otp) return res.status(400).json({ error: 'OTP code is required' });
+
+    if (String(otp).trim() !== '9001') {
+      return res.status(400).json({ error: 'Invalid verification code. Please enter demo OTP 9001.' });
+    }
+
+    const cleanPhone = String(phone).trim();
+
+    let user = await prisma.user.findFirst({
+      where: { phone: cleanPhone },
+    });
+
+    let isNewUser = false;
+    if (!user) {
+      isNewUser = true;
+      user = await prisma.user.create({
+        data: {
+          phone: cleanPhone,
+          role: 'consumer',
+          isProfileComplete: false,
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      isNewUser,
+      isProfileComplete: user.isProfileComplete,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
+        displayName: user.name || 'Zubix Member',
+        name: user.name,
+        country: user.country,
+        state: user.state,
+        district: user.district,
+        role: user.role,
+        isProfileComplete: user.isProfileComplete,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Social Login (Google / Apple)
+app.post('/api/auth/social-login', async (req: Request, res: Response) => {
+  try {
+    const { provider, email, name } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required for social login' });
+    }
+    const cleanEmail = String(email).toLowerCase().trim();
+
+    let user = await prisma.user.findFirst({
+      where: { email: cleanEmail },
+    });
+
+    let isNewUser = false;
+    if (!user) {
+      isNewUser = true;
+      user = await prisma.user.create({
+        data: {
+          email: cleanEmail,
+          name: name ? String(name).trim() : 'Zubix Member',
+          role: 'consumer',
+          isProfileComplete: false,
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      provider: provider || 'social',
+      isNewUser,
+      isProfileComplete: user.isProfileComplete,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
+        displayName: user.name || 'Zubix Member',
+        name: user.name,
+        country: user.country,
+        state: user.state,
+        district: user.district,
+        role: user.role,
+        isProfileComplete: user.isProfileComplete,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Complete Profile (Full Name, Mobile Number, Country, State, District)
+app.post('/api/auth/complete-profile', async (req: Request, res: Response) => {
+  try {
+    const { userId, name, phone, country, state, district } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Full Name is required' });
+    if (!phone || !String(phone).trim()) return res.status(400).json({ error: 'Mobile Number is required' });
+    if (!country || !String(country).trim()) return res.status(400).json({ error: 'Country is required' });
+    if (!state || !String(state).trim()) return res.status(400).json({ error: 'State is required' });
+    if (!district || !String(district).trim()) return res.status(400).json({ error: 'District is required' });
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id: String(userId) },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: String(userId) },
+      data: {
+        name: String(name).trim(),
+        phone: String(phone).trim(),
+        country: String(country).trim(),
+        state: String(state).trim(),
+        district: String(district).trim(),
+        isProfileComplete: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      user: {
+        id: updatedUser.id,
+        phone: updatedUser.phone,
+        email: updatedUser.email,
+        displayName: updatedUser.name || 'Zubix Member',
+        name: updatedUser.name,
+        country: updatedUser.country,
+        state: updatedUser.state,
+        district: updatedUser.district,
+        role: updatedUser.role,
+        isProfileComplete: updatedUser.isProfileComplete,
+        createdAt: updatedUser.createdAt,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Get User Profile by ID
+app.get('/api/auth/me', async (req: Request, res: Response) => {
+  try {
+    const userId = req.query.userId as string;
+    if (!userId) return res.status(400).json({ error: 'userId parameter required' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    return res.json({
+      id: user.id,
+      phone: user.phone,
+      email: user.email,
+      displayName: user.name || 'Zubix Member',
+      name: user.name,
+      country: user.country,
+      state: user.state,
+      district: user.district,
+      role: user.role,
+      isProfileComplete: user.isProfileComplete,
+      createdAt: user.createdAt,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/auth/register', async (req: Request, res: Response) => {
   try {
     const { email, name, role = 'consumer' } = req.body;
@@ -45,6 +251,7 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
           email: String(email).toLowerCase().trim(),
           name: name ? String(name).trim() : 'Zubix Member',
           role: String(role),
+          isProfileComplete: true,
         },
       });
     }
@@ -52,8 +259,10 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
     res.status(201).json({
       id: user.id,
       email: user.email,
+      phone: user.phone,
       displayName: user.name || 'Zubix Member',
       role: user.role,
+      isProfileComplete: user.isProfileComplete,
       createdAt: user.createdAt,
     });
   } catch (error: any) {
@@ -76,6 +285,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
           email: String(email).toLowerCase().trim(),
           name: name ? String(name).trim() : String(email).split('@')[0],
           role: 'consumer',
+          isProfileComplete: true,
         },
       });
     }
@@ -83,8 +293,10 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     res.json({
       id: user.id,
       email: user.email,
+      phone: user.phone,
       displayName: user.name || 'Zubix Member',
       role: user.role,
+      isProfileComplete: user.isProfileComplete,
       createdAt: user.createdAt,
     });
   } catch (error: any) {

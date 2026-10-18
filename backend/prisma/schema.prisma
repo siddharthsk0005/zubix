@@ -78,12 +78,17 @@ model VoucherClaim {
 }
 
 model User {
-  id        String         @id @default(uuid())
-  email     String         @unique
-  name      String?
-  role      String         @default("consumer") // consumer, brand, admin
-  avatarUrl String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  vouchers  VoucherClaim[]
+  id                String         @id @default(uuid())
+  phone             String?        @unique
+  email             String?        @unique
+  name              String?
+  country           String?
+  state             String?
+  district          String?
+  role              String         @default("consumer") // consumer, brand, admin
+  avatarUrl         String?
+  isProfileComplete Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  vouchers          VoucherClaim[]
 }

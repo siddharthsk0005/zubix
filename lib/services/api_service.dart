@@ -14,13 +14,10 @@ class ApiService {
       if (kDebugMode) return 'http://localhost:4000';
       return Uri.base.origin;
     }
-    if (kDebugMode && defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:4000'; // Android emulator to host machine mapping
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:4000'; // Direct connectivity to local server on Android
     }
-    if (kDebugMode) {
-      return 'http://localhost:4000'; // iOS simulator or desktop
-    }
-    return 'https://www.zubixapp.com'; // Production mobile app hits live domain
+    return 'https://www.zubixapp.com';
   }
 
   static Future<bool> checkHealth() async {
@@ -32,7 +29,109 @@ class ApiService {
     }
   }
 
-  // ---------------- AUTH (Supabase User Accounts) ----------------
+  // ---------------- AUTH (Supabase User Accounts & OTP) ----------------
+  static Future<Map<String, dynamic>?> sendOtp(String phone) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/send-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'phone': phone.trim()}),
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> verifyOtp(String phone, String otp) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/verify-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'phone': phone.trim(),
+          'otp': otp.trim(),
+        }),
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        return {
+          'success': true,
+          'isNewUser': data['isNewUser'] == true,
+          'isProfileComplete': data['isProfileComplete'] == true,
+          'user': UserModel.fromJson(data['user'] as Map<String, dynamic>),
+        };
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> socialLogin(String provider, {String? email, String? name}) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/social-login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'provider': provider,
+          'email': email?.trim() ?? 'member.${provider.toLowerCase()}@zubix.example',
+          'name': name?.trim() ?? 'Zubix Member',
+        }),
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        return {
+          'success': true,
+          'isNewUser': data['isNewUser'] == true,
+          'isProfileComplete': data['isProfileComplete'] == true,
+          'user': UserModel.fromJson(data['user'] as Map<String, dynamic>),
+        };
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<UserModel?> completeProfile({
+    required String userId,
+    required String name,
+    required String phone,
+    required String country,
+    required String state,
+    required String district,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/complete-profile'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'userId': userId,
+          'name': name.trim(),
+          'phone': phone.trim(),
+          'country': country.trim(),
+          'state': state.trim(),
+          'district': district.trim(),
+        }),
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        return UserModel.fromJson(data['user'] as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<UserModel?> getUserProfile(String userId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/auth/me?userId=$userId'),
+      ).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        return UserModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   static Future<UserModel?> register(String email, {String? name, String role = 'consumer'}) async {
     try {
       final res = await http.post(

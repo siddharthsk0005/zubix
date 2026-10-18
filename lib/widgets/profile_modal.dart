@@ -107,9 +107,14 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                         ),
                         Text(
-                          authState.user!.email,
+                          authState.user!.phone ?? authState.user!.email ?? '',
                           style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
                         ),
+                        if (authState.user!.district != null && authState.user!.state != null)
+                          Text(
+                            '${authState.user!.district}, ${authState.user!.state}',
+                            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                          ),
                       ],
                     ),
                   ),
@@ -218,6 +223,7 @@ class _ProfileModalState extends ConsumerState<ProfileModal> {
 
               OutlinedButton.icon(
                 onPressed: () {
+                  Navigator.of(context).pop();
                   ref.read(authProvider.notifier).signOut();
                   widget.appState.setCurrentUserId(null);
                 },

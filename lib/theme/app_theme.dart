@@ -11,6 +11,7 @@ class AppTheme {
   static const Color textPrimary = Color(0xFF18181B);
   static const Color textSecondary = Color(0xFF71717A);
   static const Color textTertiary = Color(0xFFA1A1AA);
+  static const Color textMuted = Color(0xFFA1A1AA);
   static const Color accentDark = Color(0xFF27272A);
 
   static ThemeData get lightTheme {

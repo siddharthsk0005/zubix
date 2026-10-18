@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'providers/auth_provider.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
-import 'screens/main_shell.dart';
+import 'screens/auth_gate.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
   runApp(
-    const ProviderScope(
-      child: ZubixApp(),
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const ZubixApp(),
     ),
   );
 }
@@ -44,7 +50,7 @@ class _ZubixAppState extends State<ZubixApp> {
           title: 'Zubix',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
-          home: MainShell(state: _appState),
+          home: AuthGate(state: _appState),
         );
       },
     );
