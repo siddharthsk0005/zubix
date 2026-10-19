@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'providers/auth_provider.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'screens/web_dashboard_screen.dart';
-import 'screens/brand_partner_dashboard.dart';
+import 'screens/brand_portal_screen.dart';
 import 'screens/auth_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    usePathUrlStrategy();
+  }
   SharedPreferences prefs;
   try {
     prefs = await SharedPreferences.getInstance();
@@ -61,6 +65,12 @@ class _ZubixAppState extends State<ZubixApp> {
     if (path.contains('admin') || fragment.contains('admin') || uri.queryParameters.containsKey('admin')) {
       return '/admin';
     }
+    if (path.contains('login') || fragment.contains('login') || uri.queryParameters.containsKey('login')) {
+      return '/brands/login';
+    }
+    if (path.contains('register') || fragment.contains('register') || uri.queryParameters.containsKey('register')) {
+      return '/brands/register';
+    }
     if (path.contains('brand') || fragment.contains('brand') || uri.queryParameters.containsKey('brand') || uri.queryParameters.containsKey('brands')) {
       return '/brands';
     }
@@ -71,8 +81,11 @@ class _ZubixAppState extends State<ZubixApp> {
     if (route == '/admin') {
       return WebDashboardScreen(state: _appState);
     }
-    if (route == '/brands') {
-      return BrandPartnerDashboard(state: _appState);
+    if (route == '/brands/register') {
+      return BrandPortalScreen(state: _appState, initialAuthView: 'register');
+    }
+    if (route == '/brands/login' || route == '/brands') {
+      return BrandPortalScreen(state: _appState, initialAuthView: 'gateway');
     }
     return AuthGate(state: _appState);
   }
@@ -97,9 +110,15 @@ class _ZubixAppState extends State<ZubixApp> {
                 settings: settings,
               );
             }
-            if (name.contains('brand')) {
+            if (name.contains('register')) {
               return MaterialPageRoute(
-                builder: (_) => BrandPartnerDashboard(state: _appState),
+                builder: (_) => BrandPortalScreen(state: _appState, initialAuthView: 'register'),
+                settings: settings,
+              );
+            }
+            if (name.contains('brand') || name.contains('login')) {
+              return MaterialPageRoute(
+                builder: (_) => BrandPortalScreen(state: _appState, initialAuthView: 'gateway'),
                 settings: settings,
               );
             }

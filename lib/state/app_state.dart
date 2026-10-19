@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/category_model.dart';
 import '../models/brand_model.dart';
+import '../models/brand_registration_model.dart';
 import '../models/session_model.dart';
+import '../models/session_request_model.dart';
 import '../models/voucher_model.dart';
 import '../services/api_service.dart';
+import '../services/storage/storage_service.dart';
 
 enum AppRole { consumer, admin, brand }
 
@@ -26,6 +30,7 @@ class AppState extends ChangeNotifier {
   bool get isLoadingBackend => _isLoadingBackend;
 
   AppState() {
+    _loadFromStorage();
     initFromBackend();
   }
 
@@ -91,110 +96,8 @@ class AppState extends ChangeNotifier {
       if (remoteNearby != null && remoteNearby.isNotEmpty) {
         _nearbyStores.clear();
         _nearbyStores.addAll(remoteNearby);
-
-        // Also ensure their sessions exist in _sessions pool so countdown works
-        for (final store in remoteNearby) {
-          final existing = _sessions.any((s) => s.brandId == store.id);
-          if (!existing) {
-            _sessions.add(
-              SessionModel(
-                id: 'sess_local_${store.id}',
-                title: '${store.name} In-Store Drop',
-                brandId: store.id,
-                sessionCreatedBy: store.sessionCreatedBy,
-                waitingDurationSeconds: 15,
-                discountValue: '30% FLAT IN-STORE',
-                couponCode: 'ZUBIX-LOCAL-${store.name.substring(0, 4).toUpperCase()}',
-                status: 'active',
-                totalVouchersPool: 50,
-                claimedVouchersCount: 4,
-              ),
-            );
-          }
-        }
       }
     } catch (_) {}
-
-    // Fallback if offline / empty
-    if (_nearbyStores.isEmpty) {
-      _nearbyStores.addAll([
-        BrandModel(
-          id: 'local_noir_01',
-          name: 'NOIR Coffee & Concept Atelier',
-          tagline: 'Artisan Pour-Overs & Monochrome Lifestyle Objects',
-          bio: 'A minimalist sanctuary serving single-origin Ethiopian beans alongside curated brutalist ceramics and Japanese paper goods.',
-          logoUrl: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=500&q=80',
-          showcaseImages: [
-            'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=1000&q=80',
-            'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1000&q=80',
-          ],
-          websiteUrl: 'https://noiratelier.example',
-          socialLinks: {'Instagram': 'https://instagram.com/noiratelier'},
-          contactEmail: 'concierge@noiratelier.example',
-          contactPhone: '+91 80 4123 9901',
-          categoryId: 'cat_fashion',
-          isApproved: true,
-          isPhysicalStore: true,
-          storeType: 'local_store',
-          city: 'Bengaluru',
-          area: 'Indiranagar',
-          address: '12th Main Rd, Indiranagar, Bengaluru, 560038',
-          distanceKm: 0.8,
-          googleMapsUrl: 'https://maps.google.com/?q=Indiranagar+Bengaluru',
-          timings: '08:00 AM - 10:30 PM',
-        ),
-        BrandModel(
-          id: 'local_theline_02',
-          name: 'THE LINE Menswear & Objects',
-          tagline: 'Architectural Silhouettes & Heavyweight Cotton',
-          bio: 'Physical flagship boutique showcasing unbranded luxury wardrobe staples, raw denim, and bespoke titanium accessories.',
-          logoUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=500&q=80',
-          showcaseImages: [
-            'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1000&q=80',
-            'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1000&q=80',
-          ],
-          websiteUrl: 'https://thelinestore.example',
-          socialLinks: {'Instagram': 'https://instagram.com/thelinestore'},
-          contactEmail: 'bandra@thelinestore.example',
-          contactPhone: '+91 22 2640 8820',
-          categoryId: 'cat_fashion',
-          isApproved: true,
-          isPhysicalStore: true,
-          storeType: 'local_store',
-          city: 'Mumbai',
-          area: 'Bandra West',
-          address: 'Perry Cross Rd, Bandra West, Mumbai, 400050',
-          distanceKm: 1.4,
-          googleMapsUrl: 'https://maps.google.com/?q=Bandra+West+Mumbai',
-          timings: '11:00 AM - 09:30 PM',
-        ),
-        BrandModel(
-          id: 'local_atelier_03',
-          name: 'ATELIER 01 Scent & Leather',
-          tagline: 'Hand-Poured Soy Wax & Vegetable-Tanned Goods',
-          bio: 'Experiential studio blending custom cold-pressed perfumes with artisanal leather cardholders and travel bags.',
-          logoUrl: 'https://images.unsplash.com/photo-1547887537-6158d64c35b3?w=500&q=80',
-          showcaseImages: [
-            'https://images.unsplash.com/photo-1547887537-6158d64c35b3?w=1000&q=80',
-            'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=1000&q=80',
-          ],
-          websiteUrl: 'https://atelier01.example',
-          socialLinks: {'Instagram': 'https://instagram.com/atelier01'},
-          contactEmail: 'hello@atelier01.example',
-          contactPhone: '+91 141 400 9001',
-          categoryId: 'cat_beauty',
-          isApproved: true,
-          isPhysicalStore: true,
-          storeType: 'local_store',
-          city: 'Jaipur',
-          area: 'C-Scheme',
-          address: 'Subhash Marg, C-Scheme, Jaipur, 302001',
-          distanceKm: 2.1,
-          googleMapsUrl: 'https://maps.google.com/?q=C-Scheme+Jaipur',
-          timings: '10:30 AM - 08:30 PM',
-        ),
-      ]);
-    }
 
     _isLoadingNearby = false;
     notifyListeners();
@@ -312,120 +215,7 @@ class AppState extends ChangeNotifier {
   // ----------------------------------------------------
   // BRANDS & PARTNERS
   // ----------------------------------------------------
-  final List<BrandModel> _brands = [
-    BrandModel(
-      id: 'brand_aurora',
-      name: 'AURORA Minimal',
-      tagline: 'Timeless Monochromatic Streetwear & Silhouettes',
-      bio: 'Aurora blends high-density Japanese cotton with architectural silhouettes. Designed for effortless modern wardrobes.',
-      logoUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=200&auto=format&fit=crop&q=80',
-      showcaseImages: [
-        'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1445205170230-053b83016050?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=900&auto=format&fit=crop&q=80',
-      ],
-      websiteUrl: 'https://auroraminimal.example.com',
-      socialLinks: {
-        'Instagram': 'https://instagram.com/aurora.minimal',
-        'X': 'https://x.com/auroraminimal',
-        'LinkedIn': 'https://linkedin.com/company/aurora-apparel',
-      },
-      contactEmail: 'partner@auroraminimal.com',
-      contactPhone: '+1 (555) 392-8810',
-      categoryId: 'cat_fashion',
-      sessionCreatedBy: 'Aman Verma (Lead Curator)',
-      isApproved: true,
-    ),
-    BrandModel(
-      id: 'brand_botanica',
-      name: 'Botanica Botanics',
-      tagline: 'Cold-Pressed Botanical Body & Skin Elixirs',
-      bio: 'Zero-chemical, wild-harvested botanicals crafted for skin barrier restoration and natural glow.',
-      logoUrl: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&auto=format&fit=crop&q=80',
-      showcaseImages: [
-        'https://images.unsplash.com/photo-1608248597359-566085a85590?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?w=900&auto=format&fit=crop&q=80',
-      ],
-      websiteUrl: 'https://botanicabotanics.example.com',
-      socialLinks: {
-        'Instagram': 'https://instagram.com/botanica.official',
-        'LinkedIn': 'https://linkedin.com/company/botanica-skincare',
-      },
-      contactEmail: 'press@botanica.com',
-      contactPhone: '+1 (555) 782-9901',
-      categoryId: 'cat_beauty',
-      sessionCreatedBy: 'Siddharth Kumawat (Admin)',
-      isApproved: true,
-    ),
-    BrandModel(
-      id: 'brand_nordic',
-      name: 'Nordic Space',
-      tagline: 'Artisanal Ceramic & Wood Home Accents',
-      bio: 'Functional interior objects celebrating raw organic textures and Scandinavian minimalism.',
-      logoUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=200&auto=format&fit=crop&q=80',
-      showcaseImages: [
-        'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=900&auto=format&fit=crop&q=80',
-      ],
-      websiteUrl: 'https://nordicspace.example.com',
-      socialLinks: {
-        'Instagram': 'https://instagram.com/nordicspace',
-        'X': 'https://x.com/nordic_space',
-      },
-      contactEmail: 'concierge@nordicspace.com',
-      contactPhone: '+1 (555) 234-7712',
-      categoryId: 'cat_home',
-      sessionCreatedBy: 'Zubix Partner Guild',
-      isApproved: true,
-    ),
-    BrandModel(
-      id: 'brand_lumiere',
-      name: 'LUMIÈRE Atelier',
-      tagline: 'High-Pigment Vegan Mineral Cosmetics',
-      bio: 'Clean performance makeup engineered for ultra-fine blendability and 18-hour weightless wear.',
-      logoUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200&auto=format&fit=crop&q=80',
-      showcaseImages: [
-        'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?w=900&auto=format&fit=crop&q=80',
-      ],
-      websiteUrl: 'https://lumiereatelier.example.com',
-      socialLinks: {
-        'Instagram': 'https://instagram.com/lumiereatelier',
-        'X': 'https://x.com/lumiere_cosmetics',
-      },
-      contactEmail: 'connect@lumiereatelier.com',
-      contactPhone: '+1 (555) 912-3450',
-      categoryId: 'cat_cosmetics',
-      sessionCreatedBy: 'Admin Control Center',
-      isApproved: true,
-    ),
-    BrandModel(
-      id: 'brand_kanso',
-      name: 'KANSO Audio & Tech',
-      tagline: 'Precision Acoustic Hi-Fi & Wireless Earwear',
-      bio: 'Bespoke precision audio with beryllium drivers and CNC anodized aluminum craftsmanship.',
-      logoUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&auto=format&fit=crop&q=80',
-      showcaseImages: [
-        'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=900&auto=format&fit=crop&q=80',
-        'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=900&auto=format&fit=crop&q=80',
-      ],
-      websiteUrl: 'https://kansoaudio.example.com',
-      socialLinks: {
-        'Instagram': 'https://instagram.com/kansoaudio',
-        'X': 'https://x.com/kanso_tech',
-        'LinkedIn': 'https://linkedin.com/company/kanso-audio',
-      },
-      contactEmail: 'hello@kansoaudio.com',
-      contactPhone: '+1 (555) 674-8890',
-      categoryId: 'cat_electronics',
-      sessionCreatedBy: 'Zubix Editorial Board',
-      isApproved: true,
-    ),
-  ];
+  final List<BrandModel> _brands = [];
 
   List<BrandModel> get brands => _brands;
   List<BrandModel> get approvedBrands => _brands.where((b) => b.isApproved).toList();
@@ -558,41 +348,7 @@ class AppState extends ChangeNotifier {
   // ----------------------------------------------------
   // SESSIONS ("Generative Sessions")
   // ----------------------------------------------------
-  final List<SessionModel> _sessions = [
-    SessionModel(
-      id: 'session_aurora_01',
-      brandId: 'brand_aurora',
-      sessionCreatedBy: 'Aman Verma (Admin)',
-      waitingDurationSeconds: 15, // 15 seconds for effortless testing
-      discountValue: '35% FLAT OFF',
-      couponCode: 'ZUBIX-AURORA-35',
-      status: 'active',
-      totalVouchersPool: 250,
-      claimedVouchersCount: 84,
-    ),
-    SessionModel(
-      id: 'session_botanica_01',
-      brandId: 'brand_botanica',
-      sessionCreatedBy: 'Siddharth Kumawat',
-      waitingDurationSeconds: 20,
-      discountValue: '25% OFF + Free Elixir',
-      couponCode: 'ZUBIX-BOTANICA-25',
-      status: 'active',
-      totalVouchersPool: 150,
-      claimedVouchersCount: 42,
-    ),
-    SessionModel(
-      id: 'session_kanso_01',
-      brandId: 'brand_kanso',
-      sessionCreatedBy: 'Zubix Editorial Board',
-      waitingDurationSeconds: 25,
-      discountValue: '\$50 INSTANT VOUCHER',
-      couponCode: 'ZUBIX-KANSO-50',
-      status: 'active',
-      totalVouchersPool: 100,
-      claimedVouchersCount: 61,
-    ),
-  ];
+  final List<SessionModel> _sessions = [];
 
   List<SessionModel> get sessions => _sessions;
 
@@ -600,35 +356,6 @@ class AppState extends ChangeNotifier {
     try {
       return _sessions.firstWhere((s) => s.brandId == brandId && s.status == 'active');
     } catch (_) {
-      BrandModel? brand;
-      try {
-        brand = _brands.firstWhere((b) => b.id == brandId);
-      } catch (_) {
-        try {
-          brand = _nearbyStores.firstWhere((b) => b.id == brandId);
-        } catch (_) {
-          brand = null;
-        }
-      }
-
-      if (brand != null) {
-        final clean = brand.name.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
-        final prefix = clean.length >= 4 ? clean.substring(0, 4) : 'DROP';
-        final newSession = SessionModel(
-          id: 'sess_auto_${brand.id}',
-          title: '${brand.name} Generative Drop',
-          brandId: brand.id,
-          sessionCreatedBy: brand.sessionCreatedBy,
-          waitingDurationSeconds: 15,
-          discountValue: brand.isPhysicalStore ? '30% FLAT IN-STORE' : '25% FLAT OFF',
-          couponCode: 'ZUBIX-$prefix-30',
-          status: 'active',
-          totalVouchersPool: 100,
-          claimedVouchersCount: 12,
-        );
-        _sessions.add(newSession);
-        return newSession;
-      }
       return null;
     }
   }
@@ -769,20 +496,7 @@ class AppState extends ChangeNotifier {
   // ----------------------------------------------------
   // MY VOUCHERS (Wallet Storage)
   // ----------------------------------------------------
-  final List<VoucherModel> _myVouchers = [
-    VoucherModel(
-      id: 'vouch_seed_01',
-      code: 'ZUBIX-AURORA-WELCOME',
-      brandName: 'AURORA Minimal',
-      brandLogoUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=200&auto=format&fit=crop&q=80',
-      brandWebsite: 'https://auroraminimal.example.com',
-      discountValue: '20% OFF',
-      categoryName: 'Fashion and Lifestyle',
-      claimedAt: DateTime.now().subtract(const Duration(days: 1)),
-      expiresAt: DateTime.now().add(const Duration(days: 10)),
-      terms: 'Minimum cart value \$80. Free shipping included.',
-    ),
-  ];
+  final List<VoucherModel> _myVouchers = [];
 
   List<VoucherModel> get myVouchers => _myVouchers;
 
@@ -795,6 +509,372 @@ class AppState extends ChangeNotifier {
       try {
         await ApiService.redeemVoucher(voucherId);
       } catch (_) {}
+    }
+  }
+
+  // ----------------------------------------------------
+  // BRAND REGISTRATIONS (Onboarding Applications & Active Brand)
+  // ----------------------------------------------------
+  String? _currentBrandRegistrationId;
+  String? get currentBrandRegistrationId => _currentBrandRegistrationId;
+
+  set currentBrandRegistrationId(String? id) {
+    _currentBrandRegistrationId = id;
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  BrandRegistrationModel? get currentBrandRegistration {
+    if (_currentBrandRegistrationId != null) {
+      final found = _brandRegistrations.where((r) => r.id == _currentBrandRegistrationId);
+      if (found.isNotEmpty) return found.first;
+    }
+    return _brandRegistrations.isNotEmpty ? _brandRegistrations.first : null;
+  }
+
+  final List<BrandRegistrationModel> _brandRegistrations = [];
+
+  List<BrandRegistrationModel> get brandRegistrations => _brandRegistrations;
+
+  List<BrandRegistrationModel> get pendingRegistrations =>
+      _brandRegistrations.where((r) => r.status == 'pending').toList();
+
+  bool loginBrand(String email, String password) {
+    final cleanEmail = email.trim().toLowerCase();
+    for (final reg in _brandRegistrations) {
+      if (reg.ownerEmail.trim().toLowerCase() == cleanEmail) {
+        if (password.isEmpty || reg.password == password.trim()) {
+          _currentBrandRegistrationId = reg.id;
+          _saveToStorage();
+          notifyListeners();
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  void submitBrandRegistration(BrandRegistrationModel reg) {
+    // Check if brand already applied (reapply clears old rejected entry)
+    _brandRegistrations.removeWhere(
+        (r) => r.ownerPhone == reg.ownerPhone && r.status == 'rejected');
+    _brandRegistrations.removeWhere((r) => r.id == reg.id);
+    _brandRegistrations.insert(0, reg);
+    _currentBrandRegistrationId = reg.id;
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  void approveBrandRegistration(String regId, {String reviewedBy = 'Zubix Admin'}) {
+    final idx = _brandRegistrations.indexWhere((r) => r.id == regId);
+    if (idx == -1) return;
+    _brandRegistrations[idx] = _brandRegistrations[idx].copyWith(
+      status: 'approved',
+      reviewedAt: DateTime.now(),
+      reviewedBy: reviewedBy,
+    );
+    final reg = _brandRegistrations[idx];
+
+    // INJECT REAL BRAND MODEL INTO THE ECOSYSTEM
+    final newBrand = BrandModel(
+      id: reg.id,
+      name: reg.brandName,
+      tagline: reg.brandType == 'online_d2c' ? 'Curated D2C Brand' : 'Boutique Atelier',
+      bio: reg.description != null && reg.description!.isNotEmpty
+          ? reg.description!
+          : '${reg.brandName} exclusive collections on Zubix.',
+      logoUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=400&q=80',
+      showcaseImages: [
+        'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80',
+      ],
+      websiteUrl: reg.websiteUrl ?? '',
+      socialLinks: {'instagram': reg.instagramUrl ?? ''},
+      contactEmail: reg.ownerEmail,
+      contactPhone: reg.ownerPhone,
+      categoryId: reg.categoryId,
+      isApproved: true,
+      isPhysicalStore: reg.brandType == 'local_store',
+      storeType: reg.brandType,
+      city: reg.city ?? 'Bengaluru',
+      area: reg.area ?? 'Indiranagar',
+      address: reg.address,
+      timings: reg.operatingHours ?? '10:00 AM - 9:00 PM',
+      distanceKm: 1.2,
+    );
+
+    if (reg.brandType == 'local_store') {
+      _nearbyStores.removeWhere((b) => b.id == reg.id);
+      _nearbyStores.insert(0, newBrand);
+    } else {
+      _brands.removeWhere((b) => b.id == reg.id);
+      _brands.insert(0, newBrand);
+    }
+
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  void rejectBrandRegistration(String regId, String reason,
+      {String reviewedBy = 'Zubix Admin'}) {
+    final idx = _brandRegistrations.indexWhere((r) => r.id == regId);
+    if (idx == -1) return;
+    _brandRegistrations[idx] = _brandRegistrations[idx].copyWith(
+      status: 'rejected',
+      rejectionReason: reason,
+      reviewedAt: DateTime.now(),
+      reviewedBy: reviewedBy,
+    );
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  // ----------------------------------------------------
+  // SESSION REQUESTS (Brand-Initiated Session Scheduling)
+  // ----------------------------------------------------
+  final List<SessionRequestModel> _sessionRequests = [];
+
+  List<SessionRequestModel> get sessionRequests => _sessionRequests;
+
+  List<SessionRequestModel> get pendingSessionRequests =>
+      _sessionRequests.where((r) => r.status == 'pending_approval').toList();
+
+  void submitSessionRequest(SessionRequestModel req) {
+    _sessionRequests.removeWhere((s) => s.id == req.id);
+    _sessionRequests.insert(0, req);
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  void approveSessionRequest(String reqId, {String reviewedBy = 'Zubix Admin'}) {
+    final idx = _sessionRequests.indexWhere((r) => r.id == reqId);
+    if (idx == -1) return;
+    final req = _sessionRequests[idx];
+    _sessionRequests[idx] = req.copyWith(
+      status: 'approved',
+      reviewedAt: DateTime.now(),
+      reviewedBy: reviewedBy,
+    );
+
+    // Ensure the BrandModel exists in either _brands or _nearbyStores
+    if (!_brands.any((b) => b.id == req.brandId) && !_nearbyStores.any((b) => b.id == req.brandId)) {
+      final regMatch = _brandRegistrations.where((r) => r.id == req.brandId);
+      final reg = regMatch.isNotEmpty
+          ? regMatch.first
+          : BrandRegistrationModel(
+              id: req.brandId,
+              brandName: req.brandName,
+              ownerName: 'Brand Owner',
+              ownerPhone: '',
+              ownerEmail: '',
+              password: '',
+              brandType: req.brandType,
+              categoryId: 'cat_fashion',
+            );
+      final brand = BrandModel(
+        id: reg.id,
+        name: reg.brandName,
+        tagline: reg.brandType == 'online_d2c' ? 'Curated D2C Brand' : 'Boutique Atelier',
+        bio: reg.description ?? '${reg.brandName} exclusive collections on Zubix.',
+        logoUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=400&q=80',
+        showcaseImages: [
+          'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80',
+        ],
+        websiteUrl: reg.websiteUrl ?? '',
+        socialLinks: {},
+        contactEmail: reg.ownerEmail,
+        contactPhone: reg.ownerPhone,
+        categoryId: reg.categoryId,
+        isApproved: true,
+        isPhysicalStore: reg.brandType == 'local_store',
+        storeType: reg.brandType,
+        city: reg.city ?? 'Bengaluru',
+        area: reg.area,
+        address: reg.address,
+      );
+      if (reg.brandType == 'local_store') {
+        _nearbyStores.insert(0, brand);
+      } else {
+        _brands.insert(0, brand);
+      }
+    }
+
+    final topDiscount = req.couponTiers.isNotEmpty ? req.couponTiers.first.discountPct : 20;
+    final couponLabel = '$topDiscount% OFF';
+    final cleanPrefix = req.brandName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
+    final codePrefix = cleanPrefix.length >= 4
+        ? cleanPrefix.substring(0, 4)
+        : (cleanPrefix.isEmpty ? 'BRAND' : cleanPrefix);
+
+    // Auto-create and immediately ACTIVATE the live session for the app
+    final newSession = SessionModel(
+      id: 'session_sr_$reqId',
+      title: '${req.brandName} Generative Session',
+      brandId: req.brandId,
+      sessionCreatedBy: req.brandName,
+      waitingDurationSeconds: 15,
+      discountValue: couponLabel,
+      couponCode: 'ZUBIX-$codePrefix-$topDiscount',
+      status: 'active', // ACTIVE so it immediately appears in Live Active Sessions!
+      totalVouchersPool: req.totalSlots,
+    );
+
+    _sessions.removeWhere((s) => s.id == newSession.id);
+    _sessions.insert(0, newSession);
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  void rejectSessionRequest(String reqId, String reason,
+      {String reviewedBy = 'Zubix Admin'}) {
+    final idx = _sessionRequests.indexWhere((r) => r.id == reqId);
+    if (idx == -1) return;
+    _sessionRequests[idx] = _sessionRequests[idx].copyWith(
+      status: 'rejected',
+      rejectionReason: reason,
+      reviewedAt: DateTime.now(),
+      reviewedBy: reviewedBy,
+    );
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  void proposeAlternateDates(String reqId, List<DateTime> dates,
+      {String reviewedBy = 'Zubix Admin'}) {
+    final idx = _sessionRequests.indexWhere((r) => r.id == reqId);
+    if (idx == -1) return;
+    _sessionRequests[idx] = _sessionRequests[idx].copyWith(
+      status: 'dates_proposed',
+      proposedDates: dates,
+      reviewedAt: DateTime.now(),
+      reviewedBy: reviewedBy,
+    );
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  void brandConfirmSessionDate(String reqId, DateTime confirmedDate) {
+    final idx = _sessionRequests.indexWhere((r) => r.id == reqId);
+    if (idx == -1) return;
+    _sessionRequests[idx] = _sessionRequests[idx].copyWith(
+      status: 'brand_confirmed',
+      confirmedDate: confirmedDate,
+    );
+    _saveToStorage();
+    notifyListeners();
+  }
+
+  // ----------------------------------------------------
+  // LOCAL STORAGE PERSISTENCE (Sync across reloads & tabs)
+  // ----------------------------------------------------
+  void _saveToStorage() {
+    try {
+      // 1. Brand Registrations
+      final regJson = jsonEncode(_brandRegistrations.map((r) => r.toJson()).toList());
+      LocalStorageService.setString('zubix_brand_registrations', regJson);
+
+      // 2. Session Requests
+      final reqJson = jsonEncode(_sessionRequests.map((s) => s.toJson()).toList());
+      LocalStorageService.setString('zubix_session_requests', reqJson);
+
+      // 3. Active Brand ID
+      if (_currentBrandRegistrationId != null) {
+        LocalStorageService.setString('zubix_active_brand_id', _currentBrandRegistrationId!);
+      }
+
+      // 4. Custom approved D2C Brands
+      final customBrands = _brands.where((b) => b.id.startsWith('reg_')).map((b) => b.toJson()).toList();
+      LocalStorageService.setString('zubix_custom_brands', jsonEncode(customBrands));
+
+      // 5. Custom approved Nearby Boutiques
+      final customNearby = _nearbyStores.where((b) => b.id.startsWith('reg_')).map((b) => b.toJson()).toList();
+      LocalStorageService.setString('zubix_custom_nearby', jsonEncode(customNearby));
+
+      // 6. Custom approved Sessions
+      final customSessions = _sessions.where((s) => s.id.startsWith('session_sr_')).map((s) => s.toJson()).toList();
+      LocalStorageService.setString('zubix_custom_sessions', jsonEncode(customSessions));
+    } catch (e) {
+      debugPrint('Error saving to local storage: $e');
+    }
+  }
+
+  void _loadFromStorage() {
+    try {
+      // 1. Brand Registrations (Filter out legacy demo items)
+      final regRaw = LocalStorageService.getString('zubix_brand_registrations');
+      if (regRaw != null && regRaw.isNotEmpty) {
+        final list = (jsonDecode(regRaw) as List<dynamic>)
+            .map((item) => BrandRegistrationModel.fromJson(item as Map<String, dynamic>))
+            .where((r) => !r.id.contains('demo'))
+            .toList();
+        _brandRegistrations.clear();
+        _brandRegistrations.addAll(list);
+      }
+
+      // 2. Active Brand ID
+      final activeId = LocalStorageService.getString('zubix_active_brand_id');
+      if (activeId != null && activeId.isNotEmpty && !activeId.contains('demo') && _brandRegistrations.any((r) => r.id == activeId)) {
+        _currentBrandRegistrationId = activeId;
+      } else if (_brandRegistrations.isNotEmpty) {
+        _currentBrandRegistrationId = _brandRegistrations.first.id;
+      } else {
+        _currentBrandRegistrationId = null;
+      }
+
+      // 3. Session Requests (Filter out legacy demo items)
+      final reqRaw = LocalStorageService.getString('zubix_session_requests');
+      if (reqRaw != null && reqRaw.isNotEmpty) {
+        final list = (jsonDecode(reqRaw) as List<dynamic>)
+            .map((item) => SessionRequestModel.fromJson(item as Map<String, dynamic>))
+            .where((s) => !s.id.contains('demo') && !s.brandId.contains('demo'))
+            .toList();
+        _sessionRequests.clear();
+        _sessionRequests.addAll(list);
+      }
+
+      // 4. Custom D2C Brands (Filter out legacy mock brands)
+      final cbRaw = LocalStorageService.getString('zubix_custom_brands');
+      if (cbRaw != null && cbRaw.isNotEmpty) {
+        final list = (jsonDecode(cbRaw) as List<dynamic>)
+            .map((item) => BrandModel.fromJson(item as Map<String, dynamic>))
+            .where((b) => !b.id.contains('demo') && !b.id.startsWith('brand_'))
+            .toList();
+        for (final b in list) {
+          _brands.removeWhere((existing) => existing.id == b.id);
+          _brands.insert(0, b);
+        }
+      }
+
+      // 5. Custom Nearby Stores (Filter out legacy mock local stores)
+      final cnRaw = LocalStorageService.getString('zubix_custom_nearby');
+      if (cnRaw != null && cnRaw.isNotEmpty) {
+        final list = (jsonDecode(cnRaw) as List<dynamic>)
+            .map((item) => BrandModel.fromJson(item as Map<String, dynamic>))
+            .where((b) => !b.id.contains('demo') && !b.id.startsWith('local_'))
+            .toList();
+        for (final b in list) {
+          _nearbyStores.removeWhere((existing) => existing.id == b.id);
+          _nearbyStores.insert(0, b);
+        }
+      }
+
+      // 6. Custom Sessions (Filter out legacy mock sessions)
+      final csRaw = LocalStorageService.getString('zubix_custom_sessions');
+      if (csRaw != null && csRaw.isNotEmpty) {
+        final list = (jsonDecode(csRaw) as List<dynamic>)
+            .map((item) => SessionModel.fromJson(item as Map<String, dynamic>))
+            .where((s) => !s.id.contains('demo') && !s.id.startsWith('session_aurora') && !s.id.startsWith('session_botanica') && !s.id.startsWith('session_kanso'))
+            .toList();
+        for (final s in list) {
+          _sessions.removeWhere((existing) => existing.id == s.id);
+          _sessions.insert(0, s);
+        }
+      }
+
+      // Re-save sanitized state to storage
+      _saveToStorage();
+    } catch (e) {
+      debugPrint('Error loading from local storage: $e');
     }
   }
 

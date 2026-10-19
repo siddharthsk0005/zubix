@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/brand_model.dart';
+import '../models/brand_registration_model.dart';
 import '../models/session_model.dart';
+import '../models/session_request_model.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 
@@ -24,10 +26,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   bool _isVerifyingVoucher = false;
   Map<String, dynamic>? _verificationResult;
 
+  // Filters for New Tabs
+  String _regFilter = 'all'; // 'all', 'pending', 'approved', 'rejected'
+  String _sessionReqFilter = 'all'; // 'all', 'pending_approval', 'dates_proposed', 'brand_confirmed', 'approved', 'rejected'
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -400,10 +406,21 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final pendingRegs = widget.state.pendingRegistrations.length;
+    final pendingSessions = widget.state.pendingSessionRequests.length;
+
     return Scaffold(
       backgroundColor: AppTheme.pureWhite,
       appBar: AppBar(
-        title: const Text('Admin & Partner Portal'),
+        title: const Text('Admin Panel'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pushReplacementNamed('/brands'),
+            child: const Text('Brand Portal →',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+          ),
+          const SizedBox(width: 8),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppTheme.pureBlack,
@@ -411,11 +428,23 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           indicatorColor: AppTheme.pureBlack,
           indicatorWeight: 2.5,
           isScrollable: true,
-          tabs: const [
-            Tab(text: 'Categories'),
-            Tab(text: 'Generative Sessions'),
-            Tab(text: 'Brands & Boutiques'),
-            Tab(text: 'Counter Scanner'),
+          tabs: [
+            const Tab(text: 'Categories'),
+            const Tab(text: 'Generative Sessions'),
+            const Tab(text: 'Brands & Boutiques'),
+            const Tab(text: 'Counter Scanner'),
+            Tab(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('Registrations'),
+                if (pendingRegs > 0) ...[const SizedBox(width: 6), _buildBadge(pendingRegs)],
+              ]),
+            ),
+            Tab(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('Session Requests'),
+                if (pendingSessions > 0) ...[const SizedBox(width: 6), _buildBadge(pendingSessions)],
+              ]),
+            ),
           ],
         ),
       ),
@@ -426,8 +455,22 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           _buildSessionsTab(),
           _buildBrandsTab(),
           _buildCounterScannerTab(),
+          _buildRegistrationsTab(),
+          _buildSessionRequestsTab(),
         ],
       ),
+    );
+  }
+
+  Widget _buildBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDC2626),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text('$count', style: const TextStyle(
+        color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
     );
   }
 
@@ -556,37 +599,58 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           ],
         ),
         const SizedBox(height: 16),
-        ...sessions.map((session) {
-          final allBrands = [
-            ...widget.state.brands,
-            ...widget.state.nearbyStores,
-          ];
-          final brand = allBrands.firstWhere(
-            (b) => b.id == session.brandId,
-            orElse: () => allBrands.first,
-          );
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
+        if (sessions.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(40),
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppTheme.pureWhite,
-              borderRadius: BorderRadius.circular(14),
+              color: AppTheme.surfaceLight,
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppTheme.borderLight),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: const Column(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          brand.name,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                        ),
-                        if (brand.isPhysicalStore) ...[
+                Icon(Icons.flash_off_rounded, size: 40, color: AppTheme.textTertiary),
+                SizedBox(height: 12),
+                Text('No Live Sessions scheduled yet.',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+                SizedBox(height: 4),
+                Text('Approve brand session requests or click "Schedule Drop" above to launch.',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textTertiary)),
+              ],
+            ),
+          )
+        else
+          ...sessions.map((session) {
+            final allBrands = [
+              ...widget.state.brands,
+              ...widget.state.nearbyStores,
+            ];
+            final matching = allBrands.where((b) => b.id == session.brandId);
+            final brandName = matching.isNotEmpty ? matching.first.name : (session.title.isNotEmpty ? session.title : 'Live Session');
+            final isPhysical = matching.isNotEmpty && matching.first.isPhysicalStore;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.pureWhite,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.borderLight),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            brandName,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                          ),
+                          if (isPhysical) ...[
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -700,7 +764,29 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         ),
 
         const SizedBox(height: 16),
-        ...filteredBrands.map((brand) {
+        if (filteredBrands.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(40),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceLight,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.borderLight),
+            ),
+            child: const Column(
+              children: [
+                Icon(Icons.store_mall_directory_outlined, size: 40, color: AppTheme.textTertiary),
+                SizedBox(height: 12),
+                Text('No brands in this category yet.',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+                SizedBox(height: 4),
+                Text('Real brands will appear here once approved in the Registrations tab.',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textTertiary)),
+              ],
+            ),
+          )
+        else
+          ...filteredBrands.map((brand) {
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
@@ -1003,5 +1089,972 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         }),
       ],
     );
+  }
+
+  // ----------------------------------------------------
+  // TAB 5: BRAND REGISTRATIONS
+  // ----------------------------------------------------
+  Widget _buildRegistrationsTab() {
+    final allRegs = widget.state.brandRegistrations;
+    final filtered = _regFilter == 'all'
+        ? allRegs
+        : allRegs.where((r) => r.status == _regFilter).toList();
+
+    final pendingCount = allRegs.where((r) => r.status == 'pending').length;
+    final approvedCount = allRegs.where((r) => r.status == 'approved').length;
+    final rejectedCount = allRegs.where((r) => r.status == 'rejected').length;
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // Summary Cards
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricTile('Pending Requests', '$pendingCount',
+                  pendingCount > 0 ? const Color(0xFFDC2626) : AppTheme.textPrimary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile('Approved Brands', '$approvedCount', Colors.green),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile('Rejected', '$rejectedCount', AppTheme.textSecondary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Filter Pills
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildPillChip('All (${allRegs.length})', _regFilter == 'all', () {
+                setState(() => _regFilter = 'all');
+              }),
+              const SizedBox(width: 8),
+              _buildPillChip('Pending ($pendingCount)', _regFilter == 'pending', () {
+                setState(() => _regFilter = 'pending');
+              }),
+              const SizedBox(width: 8),
+              _buildPillChip('Approved ($approvedCount)', _regFilter == 'approved', () {
+                setState(() => _regFilter = 'approved');
+              }),
+              const SizedBox(width: 8),
+              _buildPillChip('Rejected ($rejectedCount)', _regFilter == 'rejected', () {
+                setState(() => _regFilter = 'rejected');
+              }),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        if (filtered.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(40),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceLight,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.borderLight),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.inbox_outlined, size: 40, color: AppTheme.textTertiary),
+                const SizedBox(height: 12),
+                Text('No applications in "${_regFilter.toUpperCase()}"',
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+              ],
+            ),
+          )
+        else
+          ...filtered.map((reg) => _buildRegistrationCard(reg)),
+      ],
+    );
+  }
+
+  Widget _buildRegistrationCard(BrandRegistrationModel reg) {
+    final isPending = reg.status == 'pending';
+    final isApproved = reg.status == 'approved';
+    final isRejected = reg.status == 'rejected';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.pureWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPending ? const Color(0xFFDC2626).withValues(alpha: 0.3) : AppTheme.borderLight,
+          width: isPending ? 1.5 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppTheme.pureBlack,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: Text(
+                    reg.brandName.isNotEmpty ? reg.brandName[0].toUpperCase() : 'B',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            reg.brandName,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3),
+                          ),
+                        ),
+                        _buildStatusBadge(reg.status),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: reg.brandType == 'online_d2c' ? Colors.blue.shade50 : Colors.purple.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            reg.brandType == 'online_d2c' ? 'ONLINE D2C' : 'NEARBY LOCAL STORE',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: reg.brandType == 'online_d2c' ? Colors.blue.shade800 : Colors.purple.shade800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Applied ${_formatSimpleDate(reg.appliedAt)}',
+                          style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+
+          // Details grid
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              _buildDetailItem('Owner', reg.ownerName),
+              _buildDetailItem('Phone', reg.ownerPhone),
+              _buildDetailItem('Email', reg.ownerEmail),
+              if (reg.websiteUrl != null && reg.websiteUrl!.isNotEmpty)
+                _buildDetailItem('Website', reg.websiteUrl!),
+              if (reg.instagramUrl != null && reg.instagramUrl!.isNotEmpty)
+                _buildDetailItem('Instagram', reg.instagramUrl!),
+              if (reg.city != null && reg.city!.isNotEmpty)
+                _buildDetailItem('City / Area', '${reg.city} • ${reg.area ?? ""}'),
+            ],
+          ),
+
+          if (reg.address != null && reg.address!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildDetailItem('Store Address', reg.address!),
+          ],
+
+          if (reg.description != null && reg.description!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              reg.description!,
+              style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary, height: 1.4),
+            ),
+          ],
+
+          if (isApproved) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.green, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Portal Access Active • Login: ${reg.ownerEmail} (Password configured at signup)',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.green.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          if (isRejected) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Colors.red, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Rejected: ${reg.rejectionReason ?? "Does not meet brand criteria"}. Brand can reapply.',
+                      style: TextStyle(fontSize: 11.5, color: Colors.red.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Actions
+          if (isPending) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _handleApproveRegistration(reg),
+                    icon: const Icon(Icons.check_rounded, size: 16),
+                    label: const Text('Approve & Onboard Brand'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.pureBlack,
+                      foregroundColor: AppTheme.pureWhite,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: () => _handleRejectRegistration(reg),
+                  icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
+                  label: const Text('Reject', style: TextStyle(color: Color(0xFFDC2626))),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFDC2626)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _handleApproveRegistration(BrandRegistrationModel reg) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Approve "${reg.brandName}"?'),
+        content: Text(
+          'This will authorize the brand.\n\n'
+          '• A brand profile will be onboarded.\n'
+          '• Brand can log in to the Brand Dashboard at /brands using email "${reg.ownerEmail}" and their set password.\n'
+          '• They will be enabled to submit Generative Session requests.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              widget.state.approveBrandRegistration(reg.id);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('"${reg.brandName}" approved successfully!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.pureBlack),
+            child: const Text('Confirm Approval'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleRejectRegistration(BrandRegistrationModel reg) {
+    final reasonCtrl = TextEditingController(text: 'Brand portfolio/documentation incomplete');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Reject "${reg.brandName}"'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter the reason for rejection. The brand will see this note and have the option to reapply:',
+              style: TextStyle(fontSize: 12.5),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Reason for rejection...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final reason = reasonCtrl.text.trim();
+              Navigator.pop(ctx);
+              widget.state.rejectBrandRegistration(reg.id, reason.isEmpty ? 'Criteria not met' : reason);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Registration for "${reg.brandName}" rejected.'),
+                  backgroundColor: Colors.red.shade700,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            child: const Text('Reject Application'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ----------------------------------------------------
+  // TAB 6: SESSION REQUESTS (Brand Generative Sessions)
+  // ----------------------------------------------------
+  Widget _buildSessionRequestsTab() {
+    final allRequests = widget.state.sessionRequests;
+    final filtered = _sessionReqFilter == 'all'
+        ? allRequests
+        : allRequests.where((r) => r.status == _sessionReqFilter).toList();
+
+    final pendingCount = allRequests.where((r) => r.status == 'pending_approval').length;
+    final proposedCount = allRequests.where((r) => r.status == 'dates_proposed').length;
+    final confirmedCount = allRequests.where((r) => r.status == 'brand_confirmed').length;
+    final approvedCount = allRequests.where((r) => r.status == 'approved').length;
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // Summary Cards
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricTile('Pending Requests', '$pendingCount',
+                  pendingCount > 0 ? const Color(0xFFDC2626) : AppTheme.textPrimary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile('Dates Countered', '$proposedCount', Colors.orange),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile('Ready for Final', '$confirmedCount', Colors.blue),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMetricTile('Live / Approved', '$approvedCount', Colors.green),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // Filter Pills
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildPillChip('All (${allRequests.length})', _sessionReqFilter == 'all', () {
+                setState(() => _sessionReqFilter = 'all');
+              }),
+              const SizedBox(width: 8),
+              _buildPillChip('Pending Review ($pendingCount)', _sessionReqFilter == 'pending_approval', () {
+                setState(() => _sessionReqFilter = 'pending_approval');
+              }),
+              const SizedBox(width: 8),
+              _buildPillChip('Date Countered ($proposedCount)', _sessionReqFilter == 'dates_proposed', () {
+                setState(() => _sessionReqFilter = 'dates_proposed');
+              }),
+              const SizedBox(width: 8),
+              _buildPillChip('Brand Confirmed ($confirmedCount)', _sessionReqFilter == 'brand_confirmed', () {
+                setState(() => _sessionReqFilter = 'brand_confirmed');
+              }),
+              const SizedBox(width: 8),
+              _buildPillChip('Approved / Scheduled ($approvedCount)', _sessionReqFilter == 'approved', () {
+                setState(() => _sessionReqFilter = 'approved');
+              }),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        if (filtered.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(40),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceLight,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.borderLight),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.bolt_outlined, size: 40, color: AppTheme.textTertiary),
+                const SizedBox(height: 12),
+                Text('No session requests in "${_sessionReqFilter.toUpperCase()}"',
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+              ],
+            ),
+          )
+        else
+          ...filtered.map((req) => _buildSessionRequestCard(req)),
+      ],
+    );
+  }
+
+  Widget _buildSessionRequestCard(SessionRequestModel req) {
+    final isPending = req.status == 'pending_approval';
+    final isProposed = req.status == 'dates_proposed';
+    final isBrandConfirmed = req.status == 'brand_confirmed';
+    final isApproved = req.status == 'approved';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.pureWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPending || isBrandConfirmed
+              ? AppTheme.pureBlack
+              : AppTheme.borderLight,
+          width: isPending || isBrandConfirmed ? 1.5 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppTheme.pureBlack,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(
+                  child: Icon(Icons.flash_on_rounded, color: Colors.white, size: 22),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            req.brandName,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3),
+                          ),
+                        ),
+                        _buildSessionStatusBadge(req.status),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Requested Date: ${_formatSimpleDate(req.requestedDate)}',
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+
+          // Coupon Tiers breakdown
+          const Text(
+            'COUPON TIERS & POOL DISTRIBUTION:',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.textSecondary, letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceLight,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppTheme.borderLight),
+            ),
+            child: Column(
+              children: [
+                ...req.couponTiers.map((tier) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppTheme.pureBlack,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${tier.discountPct}% OFF',
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'allocated for ${tier.slots} shoppers',
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    )),
+                const Divider(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Total Vouchers Pool:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text('${req.totalSlots} Vouchers', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          if (req.additionalNotes != null && req.additionalNotes!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Brand Notes: "${req.additionalNotes}"',
+              style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSecondary),
+            ),
+          ],
+
+          if (isProposed && req.proposedDates.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.hourglass_top_rounded, color: Colors.orange, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Admin Countered with: ${req.proposedDates.map(_formatSimpleDate).join(", ")}. Waiting for brand choice.',
+                      style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          if (isBrandConfirmed && req.confirmedDate != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, color: Colors.blue, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Brand accepted alternative date: ${_formatSimpleDate(req.confirmedDate!)}. Ready to finalize.',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.blue.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          if (isApproved) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.green, size: 16),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Session Approved & Live! Users can now join this Generative Session in Zubix App.',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.green),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Action Buttons
+          if (isPending || isBrandConfirmed) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      widget.state.approveSessionRequest(req.id);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Session for "${req.brandName}" is now APPROVED & SCHEDULED!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.check_rounded, size: 16),
+                    label: Text(isBrandConfirmed ? 'Confirm Final & Launch' : '1. Accept & Schedule Live'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.pureBlack,
+                      foregroundColor: AppTheme.pureWhite,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                if (isPending) ...[
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _handleProposeDatesDialog(req),
+                    icon: const Icon(Icons.calendar_month_outlined, size: 16),
+                    label: const Text('2. Propose Dates'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.pureBlack,
+                      side: const BorderSide(color: AppTheme.pureBlack),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () => _handleRejectSessionDialog(req),
+                    icon: const Icon(Icons.close_rounded, color: Color(0xFFDC2626)),
+                    tooltip: 'Reject Request',
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _handleProposeDatesDialog(SessionRequestModel req) {
+    final now = DateTime.now();
+    // Default 3 available alternative slots
+    final opt1 = req.requestedDate.add(const Duration(days: 3));
+    final opt2 = req.requestedDate.add(const Duration(days: 7));
+    final opt3 = req.requestedDate.add(const Duration(days: 10));
+
+    final selectedDates = <DateTime>[opt1, opt2];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text('Propose Dates for ${req.brandName}'),
+            content: SizedBox(
+              width: 400,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Brand requested: ${_formatSimpleDate(req.requestedDate)}.\n'
+                    'Select available days to propose to the brand so they can pick one:',
+                    style: const TextStyle(fontSize: 12.5, height: 1.4),
+                  ),
+                  const SizedBox(height: 16),
+                  ...[opt1, opt2, opt3].map((date) {
+                    final isChecked = selectedDates.any((d) => d.year == date.year && d.month == date.month && d.day == date.day);
+                    return CheckboxListTile(
+                      dense: true,
+                      value: isChecked,
+                      title: Text(_formatSimpleDate(date), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                      subtitle: Text('${date.difference(now).inDays} days from now'),
+                      activeColor: AppTheme.pureBlack,
+                      onChanged: (val) {
+                        setDialogState(() {
+                          if (val == true) {
+                            selectedDates.add(date);
+                          } else {
+                            selectedDates.removeWhere((d) => d.year == date.year && d.month == date.month && d.day == date.day);
+                          }
+                        });
+                      },
+                    );
+                  }),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: selectedDates.isEmpty
+                    ? null
+                    : () {
+                        Navigator.pop(ctx);
+                        widget.state.proposeAlternateDates(req.id, selectedDates);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Alternative dates proposed to "${req.brandName}"!'),
+                            backgroundColor: Colors.orange.shade800,
+                          ),
+                        );
+                      },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.pureBlack),
+                child: const Text('Send Proposed Dates to Brand'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _handleRejectSessionDialog(SessionRequestModel req) {
+    final reasonCtrl = TextEditingController(text: 'Scheduling conflict or high slot congestion');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Reject Session for "${req.brandName}"'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter reason for declining this session request:', style: TextStyle(fontSize: 12.5)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(hintText: 'Reason...', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              widget.state.rejectSessionRequest(req.id, reasonCtrl.text.trim());
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Session request declined.'), backgroundColor: Colors.red.shade700),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            child: const Text('Decline Request'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helpers
+  Widget _buildMetricTile(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPillChip(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.pureBlack : AppTheme.surfaceLight,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? AppTheme.pureBlack : AppTheme.borderLight),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : AppTheme.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    Color bg;
+    Color fg;
+    String label;
+    switch (status) {
+      case 'approved':
+        bg = Colors.green.shade50;
+        fg = Colors.green.shade800;
+        label = 'APPROVED';
+        break;
+      case 'rejected':
+        bg = Colors.red.shade50;
+        fg = Colors.red.shade800;
+        label = 'REJECTED';
+        break;
+      default:
+        bg = Colors.amber.shade50;
+        fg = Colors.amber.shade900;
+        label = 'PENDING REVIEW';
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: fg)),
+    );
+  }
+
+  Widget _buildSessionStatusBadge(String status) {
+    Color bg;
+    Color fg;
+    String label;
+    switch (status) {
+      case 'approved':
+        bg = Colors.green.shade50;
+        fg = Colors.green.shade800;
+        label = 'APPROVED / LIVE';
+        break;
+      case 'dates_proposed':
+        bg = Colors.orange.shade50;
+        fg = Colors.orange.shade800;
+        label = 'DATES COUNTERED';
+        break;
+      case 'brand_confirmed':
+        bg = Colors.blue.shade50;
+        fg = Colors.blue.shade800;
+        label = 'BRAND CONFIRMED DATE';
+        break;
+      case 'rejected':
+        bg = Colors.red.shade50;
+        fg = Colors.red.shade800;
+        label = 'REJECTED';
+        break;
+      default:
+        bg = Colors.amber.shade50;
+        fg = Colors.amber.shade900;
+        label = 'PENDING APPROVAL';
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: fg)),
+    );
+  }
+
+  Widget _buildDetailItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$label: ', style: const TextStyle(fontSize: 11.5, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+          Text(value, style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 14),
+        ],
+      ),
+    );
+  }
+
+  String _formatSimpleDate(DateTime d) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 }

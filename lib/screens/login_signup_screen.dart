@@ -49,16 +49,7 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
       setState(() {
         _otpSent = true;
       });
-      // Pre-fill demo OTP 9001 for user convenience
-      _fillDemoOtp();
       _otpFocusNodes[0].requestFocus();
-    }
-  }
-
-  void _fillDemoOtp() {
-    const demo = '9001';
-    for (int i = 0; i < 4; i++) {
-      _otpControllers[i].text = demo[i];
     }
   }
 
@@ -407,36 +398,7 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Demo OTP Helper Chip
-                      Center(
-                        child: GestureDetector(
-                          onTap: _fillDemoOtp,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: AppTheme.surfaceLight,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: AppTheme.borderLight),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.key, size: 14, color: AppTheme.pureBlack),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Demo OTP: 9001 (Tap to fill)',
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppTheme.pureBlack,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
+
 
                       // Verify Button
                       ElevatedButton(

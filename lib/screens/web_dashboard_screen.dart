@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import '../models/brand_registration_model.dart';
+import '../models/session_request_model.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
-import 'brand_partner_dashboard.dart';
+import 'brand_portal_screen.dart';
+import 'brand_register_screen.dart';
 
 class WebDashboardScreen extends StatefulWidget {
   final AppState state;
@@ -109,6 +112,23 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                 _buildSidebarItem(3, 'Partner Brands (D2C)', Icons.storefront_outlined),
                 _buildSidebarItem(4, 'Nearby Boutiques & Shops', Icons.near_me_outlined),
                 _buildSidebarItem(5, 'Counter Scanner Terminal', Icons.point_of_sale_outlined),
+                const SizedBox(height: 12),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: Text(
+                    'BRAND INGESTION & DROPS',
+                    style: TextStyle(
+                      color: AppTheme.textTertiary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+                _buildSidebarItem(6, 'Brand Registrations', Icons.app_registration_outlined,
+                    badgeCount: widget.state.pendingRegistrations.length),
+                _buildSidebarItem(7, 'Session Requests', Icons.campaign_outlined,
+                    badgeCount: widget.state.pendingSessionRequests.length),
 
                 const Spacer(),
 
@@ -170,7 +190,21 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => BrandPartnerDashboard(state: widget.state),
+                                    builder: (_) => BrandRegisterScreen(state: widget.state),
+                                    settings: const RouteSettings(name: '/brands/register'),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.person_add_outlined, size: 16),
+                              label: const Text('Brand Register (/brands/register)'),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => BrandPortalScreen(state: widget.state),
                                     settings: const RouteSettings(name: '/brands'),
                                   ),
                                 );
@@ -178,7 +212,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                               icon: const Icon(Icons.storefront, size: 16),
                               label: const Text('Brand Portal (/brands)'),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
                             OutlinedButton.icon(
                               onPressed: () {
                                 if (Navigator.canPop(context)) {
@@ -226,12 +260,16 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         return 'Nearby Local Boutiques & Ateliers';
       case 5:
         return 'In-Store Counter Scanner & Voucher Terminal';
+      case 6:
+        return 'Brand Registration Applications (Onboarding Pipeline)';
+      case 7:
+        return 'Generative Session Requests & Date Negotiation';
       default:
         return '';
     }
   }
 
-  Widget _buildSidebarItem(int index, String title, IconData icon) {
+  Widget _buildSidebarItem(int index, String title, IconData icon, {int badgeCount = 0}) {
     final isSelected = _selectedSidebarIndex == index;
 
     return Container(
@@ -242,13 +280,31 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         selectedTileColor: AppTheme.accentDark,
         leading: Icon(icon, size: 18, color: isSelected ? AppTheme.pureWhite : AppTheme.textSecondary),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? AppTheme.pureWhite : AppTheme.textSecondary,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? AppTheme.pureWhite : AppTheme.textSecondary,
+                ),
+              ),
+            ),
+            if (badgeCount > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDC2626),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$badgeCount',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+                ),
+              ),
+          ],
         ),
         onTap: () => setState(() => _selectedSidebarIndex = index),
       ),
@@ -269,6 +325,10 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
         return _buildNearbyBoutiquesSection();
       case 5:
         return _buildCounterScannerSection();
+      case 6:
+        return _buildBrandRegistrationsSection();
+      case 7:
+        return _buildSessionRequestsSection();
       default:
         return const SizedBox.shrink();
     }
@@ -849,6 +909,400 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ----------------------------------------------------
+  // BRAND REGISTRATIONS SECTION (Web Desktop Admin)
+  // ----------------------------------------------------
+  Widget _buildBrandRegistrationsSection() {
+    final regs = widget.state.brandRegistrations;
+    final pendingCount = widget.state.pendingRegistrations.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Brand Onboarding Requests',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                Text('$pendingCount pending review • ${regs.length} total applications',
+                    style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+              ],
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BrandRegisterScreen(state: widget.state),
+                    settings: const RouteSettings(name: '/brands/register'),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Open Brand Signup Form (/brands/register)'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.pureBlack,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        if (regs.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(40),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppTheme.pureWhite,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.borderLight),
+            ),
+            child: const Text('No brand applications yet.',
+                style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+          )
+        else
+          ...regs.map((reg) => _buildWebRegCard(reg)),
+      ],
+    );
+  }
+
+  Widget _buildWebRegCard(BrandRegistrationModel reg) {
+    final isPending = reg.status == 'pending';
+    final isApproved = reg.status == 'approved';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.pureWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPending ? const Color(0xFFDC2626).withValues(alpha: 0.4) : AppTheme.borderLight,
+          width: isPending ? 1.5 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppTheme.pureBlack,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    reg.brandName.isNotEmpty ? reg.brandName[0].toUpperCase() : 'B',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 20),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(reg.brandName,
+                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: reg.brandType == 'online_d2c' ? Colors.blue.shade50 : Colors.purple.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            reg.brandType == 'online_d2c' ? 'ONLINE D2C' : 'LOCAL STORE / BOUTIQUE',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: reg.brandType == 'online_d2c' ? Colors.blue.shade800 : Colors.purple.shade800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Owner: ${reg.ownerName} • Phone: ${reg.ownerPhone} • Email: ${reg.ownerEmail}',
+                      style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isApproved
+                      ? Colors.green.shade50
+                      : (reg.status == 'rejected' ? Colors.red.shade50 : Colors.amber.shade50),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  reg.status.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isApproved
+                        ? Colors.green.shade800
+                        : (reg.status == 'rejected' ? Colors.red.shade800 : Colors.amber.shade900),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (reg.description != null && reg.description!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(reg.description!, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+          ],
+          if (reg.address != null && reg.address!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text('📍 Store Address: ${reg.address} • Hours: ${reg.operatingHours ?? "N/A"}',
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ],
+          if (isApproved) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+              child: Text(
+                '✓ Brand Authorized • Can login at /brands with email: ${reg.ownerEmail} & password set during registration',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade900),
+              ),
+            ),
+          ],
+          if (isPending) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () {
+                    widget.state.approveBrandRegistration(reg.id);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('"${reg.brandName}" approved!'), backgroundColor: Colors.green),
+                    );
+                  },
+                  icon: const Icon(Icons.check, size: 16),
+                  label: const Text('Approve & Onboard Brand'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.pureBlack,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    widget.state.rejectBrandRegistration(reg.id, 'Criteria not met');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Registration for "${reg.brandName}" declined.'), backgroundColor: Colors.red),
+                    );
+                  },
+                  icon: const Icon(Icons.close, size: 16, color: Color(0xFFDC2626)),
+                  label: const Text('Reject', style: TextStyle(color: Color(0xFFDC2626))),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFDC2626)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ----------------------------------------------------
+  // SESSION REQUESTS SECTION (Web Desktop Admin)
+  // ----------------------------------------------------
+  Widget _buildSessionRequestsSection() {
+    final requests = widget.state.sessionRequests;
+    final pendingCount = widget.state.pendingSessionRequests.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Brand Generative Session Proposals',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                Text('$pendingCount pending admin action • ${requests.length} total requests',
+                    style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        if (requests.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(40),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppTheme.pureWhite,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.borderLight),
+            ),
+            child: const Text('No session requests submitted by brands yet.',
+                style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+          )
+        else
+          ...requests.map((req) => _buildWebSessionReqCard(req)),
+      ],
+    );
+  }
+
+  Widget _buildWebSessionReqCard(SessionRequestModel req) {
+    final isPending = req.status == 'pending_approval';
+    final isBrandConfirmed = req.status == 'brand_confirmed';
+    final isApproved = req.status == 'approved';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.pureWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPending || isBrandConfirmed ? AppTheme.pureBlack : AppTheme.borderLight,
+          width: isPending || isBrandConfirmed ? 1.5 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(color: AppTheme.pureBlack, borderRadius: BorderRadius.circular(10)),
+                child: const Center(child: Icon(Icons.flash_on, color: Colors.white, size: 22)),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(req.brandName,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Requested Live Date: ${req.requestedDate.day}/${req.requestedDate.month}/${req.requestedDate.year} • Total pool: ${req.totalSlots} vouchers',
+                      style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isApproved
+                      ? Colors.green.shade50
+                      : (req.status == 'dates_proposed' ? Colors.orange.shade50 : Colors.blue.shade50),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  req.status.replaceAll('_', ' ').toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: isApproved
+                        ? Colors.green.shade800
+                        : (req.status == 'dates_proposed' ? Colors.orange.shade800 : Colors.blue.shade800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          const Text('Coupon Tiers Allocation:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: req.couponTiers
+                .map((tier) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surfaceLight,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppTheme.borderLight),
+                      ),
+                      child: Text('${tier.slots} shoppers get ${tier.discountPct}% OFF',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    ))
+                .toList(),
+          ),
+          if (isPending || isBrandConfirmed) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () {
+                    widget.state.approveSessionRequest(req.id);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Session for "${req.brandName}" is now LIVE!'), backgroundColor: Colors.green),
+                    );
+                  },
+                  icon: const Icon(Icons.check, size: 16),
+                  label: Text(isBrandConfirmed ? 'Confirm Final & Launch' : 'Accept Date & Launch Live Session'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.pureBlack,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (isPending)
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final alt1 = req.requestedDate.add(const Duration(days: 3));
+                      final alt2 = req.requestedDate.add(const Duration(days: 7));
+                      widget.state.proposeAlternateDates(req.id, [alt1, alt2]);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Proposed alternative dates sent to "${req.brandName}"!'),
+                          backgroundColor: Colors.orange.shade800,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.calendar_month, size: 16),
+                    label: const Text('Propose Available Dates'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.pureBlack,
+                      side: const BorderSide(color: AppTheme.pureBlack),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );

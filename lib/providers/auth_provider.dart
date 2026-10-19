@@ -122,10 +122,10 @@ class AuthNotifier extends Notifier<AuthState> {
 
     state = state.copyWith(isLoading: true, errorMessage: null);
 
-    if (otp.trim() != '9001') {
+    if (otp.trim().length != 4) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Invalid verification code. Please enter demo OTP 9001.',
+        errorMessage: 'Please enter a valid 4-digit verification code.',
       );
       return false;
     }

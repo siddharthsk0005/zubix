@@ -151,9 +151,10 @@ class GenerativeSessionScreen extends StatelessWidget {
           )
         else
           ...activeSessions.map((session) {
-            final brand = state.brands.firstWhere(
+            final allBrands = [...state.brands, ...state.nearbyStores];
+            final brand = allBrands.firstWhere(
               (b) => b.id == session.brandId,
-              orElse: () => state.brands.first,
+              orElse: () => allBrands.isNotEmpty ? allBrands.first : state.brands.first,
             );
 
             return Container(
