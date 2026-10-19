@@ -6,7 +6,7 @@ class BrandRegistrationModel {
   String ownerName;
   String ownerPhone;
   String ownerEmail;
-  String password; // hashed in production, stored for demo
+  String password;
   String brandType; // 'online_d2c' or 'local_store'
   String? websiteUrl;
   String? instagramUrl;

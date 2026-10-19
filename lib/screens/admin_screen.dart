@@ -967,7 +967,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   controller: _adminVoucherController,
                   style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
                   decoration: const InputDecoration(
-                    hintText: 'Enter Voucher Code (e.g. ZUBIX-NOIR-30)',
+                    hintText: 'Enter Voucher Code (e.g. ZUBIX-BRAND-30)',
                     hintStyle: TextStyle(fontSize: 13, color: AppTheme.textTertiary, letterSpacing: 0.5),
                     prefixIcon: Icon(Icons.qr_code, color: AppTheme.pureBlack),
                     contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),

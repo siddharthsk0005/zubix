@@ -377,7 +377,7 @@ class _BrandPartnerDashboardState extends State<BrandPartnerDashboard> {
                             controller: _voucherVerifyController,
                             style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2),
                             decoration: const InputDecoration(
-                              hintText: 'e.g. ZUBIX-NOIR-30',
+                              hintText: 'e.g. ZUBIX-BRAND-30',
                               hintStyle: TextStyle(fontSize: 13, color: AppTheme.textTertiary, letterSpacing: 0.5),
                               contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               border: InputBorder.none,

@@ -1,23 +1,24 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:zubix/main.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zubix/main.dart';
+import 'package:zubix/providers/auth_provider.dart';
 
 void main() {
-  testWidgets('Zubix smoke test', (WidgetTester tester) async {
+  testWidgets('Zubix app boots to the splash/auth gate', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+
     await tester.pumpWidget(
-      const ProviderScope(
-        child: ZubixApp(),
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+        child: const ZubixApp(),
       ),
     );
-    expect(find.text('ZUBIX'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(find.text('ZUBIX'), findsWidgets);
   });
 }

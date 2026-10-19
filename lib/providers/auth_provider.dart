@@ -103,13 +103,11 @@ class AuthNotifier extends Notifier<AuthState> {
       }
     } catch (_) {}
 
-    // Offline / fallback demo mode
     state = state.copyWith(
       isLoading: false,
-      pendingPhone: cleanPhone,
-      errorMessage: null,
+      errorMessage: 'Could not send the verification code. Please try again.',
     );
-    return true;
+    return false;
   }
 
   // Step 2: Verify OTP
@@ -155,21 +153,11 @@ class AuthNotifier extends Notifier<AuthState> {
       }
     } catch (_) {}
 
-    // Fallback offline mock user
-    final fallbackUser = UserModel(
-      id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
-      phone: phone,
-      displayName: phone,
-      role: 'consumer',
-      isProfileComplete: false,
-    );
-    state = AuthState(
-      user: fallbackUser,
+    state = state.copyWith(
       isLoading: false,
-      needsProfileCompletion: true,
-      pendingPhone: phone,
+      errorMessage: 'Verification failed. Check the code and try again.',
     );
-    return true;
+    return false;
   }
 
   // Social Login (Google / Apple)
@@ -199,20 +187,11 @@ class AuthNotifier extends Notifier<AuthState> {
       }
     } catch (_) {}
 
-    // Offline mock for social
-    final fallbackUser = UserModel(
-      id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
-      email: email ?? 'member.${provider.toLowerCase()}@zubix.example',
-      displayName: name ?? 'Zubix Member',
-      role: 'consumer',
-      isProfileComplete: false,
-    );
-    state = AuthState(
-      user: fallbackUser,
+    state = state.copyWith(
       isLoading: false,
-      needsProfileCompletion: true,
+      errorMessage: 'Could not sign in with $provider. Please try again.',
     );
-    return true;
+    return false;
   }
 
   // Step 3: Complete Onboarding Profile Details

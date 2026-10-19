@@ -845,7 +845,7 @@ class _WebDashboardScreenState extends State<WebDashboardScreen> {
                           controller: _voucherVerifyCtrl,
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: 1.5),
                           decoration: const InputDecoration(
-                            hintText: 'Enter Voucher Code (e.g. ZUBIX-NOIR-30)',
+                            hintText: 'Enter Voucher Code (e.g. ZUBIX-BRAND-30)',
                             hintStyle: TextStyle(fontSize: 14, color: AppTheme.textTertiary, letterSpacing: 0.5),
                             prefixIcon: Icon(Icons.qr_code_scanner, color: AppTheme.pureBlack),
                             contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 16),

@@ -18,7 +18,7 @@ class AppState extends ChangeNotifier {
   AppRole _currentRole = AppRole.consumer;
   AppRole get currentRole => _currentRole;
 
-  String? _currentUserId = 'usr_demo_01';
+  String? _currentUserId;
   String? get currentUserId => _currentUserId;
 
   void setCurrentUserId(String? id) {
@@ -525,11 +525,9 @@ class AppState extends ChangeNotifier {
   }
 
   BrandRegistrationModel? get currentBrandRegistration {
-    if (_currentBrandRegistrationId != null) {
-      final found = _brandRegistrations.where((r) => r.id == _currentBrandRegistrationId);
-      if (found.isNotEmpty) return found.first;
-    }
-    return _brandRegistrations.isNotEmpty ? _brandRegistrations.first : null;
+    if (_currentBrandRegistrationId == null) return null;
+    final found = _brandRegistrations.where((r) => r.id == _currentBrandRegistrationId);
+    return found.isNotEmpty ? found.first : null;
   }
 
   final List<BrandRegistrationModel> _brandRegistrations = [];
@@ -583,11 +581,8 @@ class AppState extends ChangeNotifier {
       bio: reg.description != null && reg.description!.isNotEmpty
           ? reg.description!
           : '${reg.brandName} exclusive collections on Zubix.',
-      logoUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=400&q=80',
-      showcaseImages: [
-        'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80',
-      ],
+      logoUrl: '',
+      showcaseImages: const [],
       websiteUrl: reg.websiteUrl ?? '',
       socialLinks: {'instagram': reg.instagramUrl ?? ''},
       contactEmail: reg.ownerEmail,
@@ -596,11 +591,10 @@ class AppState extends ChangeNotifier {
       isApproved: true,
       isPhysicalStore: reg.brandType == 'local_store',
       storeType: reg.brandType,
-      city: reg.city ?? 'Bengaluru',
-      area: reg.area ?? 'Indiranagar',
+      city: reg.city,
+      area: reg.area,
       address: reg.address,
       timings: reg.operatingHours ?? '10:00 AM - 9:00 PM',
-      distanceKm: 1.2,
     );
 
     if (reg.brandType == 'local_store') {
@@ -676,10 +670,8 @@ class AppState extends ChangeNotifier {
         name: reg.brandName,
         tagline: reg.brandType == 'online_d2c' ? 'Curated D2C Brand' : 'Boutique Atelier',
         bio: reg.description ?? '${reg.brandName} exclusive collections on Zubix.',
-        logoUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=400&q=80',
-        showcaseImages: [
-          'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80',
-        ],
+        logoUrl: '',
+        showcaseImages: const [],
         websiteUrl: reg.websiteUrl ?? '',
         socialLinks: {},
         contactEmail: reg.ownerEmail,
@@ -780,6 +772,8 @@ class AppState extends ChangeNotifier {
       // 3. Active Brand ID
       if (_currentBrandRegistrationId != null) {
         LocalStorageService.setString('zubix_active_brand_id', _currentBrandRegistrationId!);
+      } else {
+        LocalStorageService.remove('zubix_active_brand_id');
       }
 
       // 4. Custom approved D2C Brands
@@ -800,44 +794,35 @@ class AppState extends ChangeNotifier {
 
   void _loadFromStorage() {
     try {
-      // 1. Brand Registrations (Filter out legacy demo items)
       final regRaw = LocalStorageService.getString('zubix_brand_registrations');
       if (regRaw != null && regRaw.isNotEmpty) {
         final list = (jsonDecode(regRaw) as List<dynamic>)
             .map((item) => BrandRegistrationModel.fromJson(item as Map<String, dynamic>))
-            .where((r) => !r.id.contains('demo'))
             .toList();
         _brandRegistrations.clear();
         _brandRegistrations.addAll(list);
       }
 
-      // 2. Active Brand ID
       final activeId = LocalStorageService.getString('zubix_active_brand_id');
-      if (activeId != null && activeId.isNotEmpty && !activeId.contains('demo') && _brandRegistrations.any((r) => r.id == activeId)) {
+      if (activeId != null && activeId.isNotEmpty && _brandRegistrations.any((r) => r.id == activeId)) {
         _currentBrandRegistrationId = activeId;
-      } else if (_brandRegistrations.isNotEmpty) {
-        _currentBrandRegistrationId = _brandRegistrations.first.id;
       } else {
         _currentBrandRegistrationId = null;
       }
 
-      // 3. Session Requests (Filter out legacy demo items)
       final reqRaw = LocalStorageService.getString('zubix_session_requests');
       if (reqRaw != null && reqRaw.isNotEmpty) {
         final list = (jsonDecode(reqRaw) as List<dynamic>)
             .map((item) => SessionRequestModel.fromJson(item as Map<String, dynamic>))
-            .where((s) => !s.id.contains('demo') && !s.brandId.contains('demo'))
             .toList();
         _sessionRequests.clear();
         _sessionRequests.addAll(list);
       }
 
-      // 4. Custom D2C Brands (Filter out legacy mock brands)
       final cbRaw = LocalStorageService.getString('zubix_custom_brands');
       if (cbRaw != null && cbRaw.isNotEmpty) {
         final list = (jsonDecode(cbRaw) as List<dynamic>)
             .map((item) => BrandModel.fromJson(item as Map<String, dynamic>))
-            .where((b) => !b.id.contains('demo') && !b.id.startsWith('brand_'))
             .toList();
         for (final b in list) {
           _brands.removeWhere((existing) => existing.id == b.id);
@@ -845,12 +830,10 @@ class AppState extends ChangeNotifier {
         }
       }
 
-      // 5. Custom Nearby Stores (Filter out legacy mock local stores)
       final cnRaw = LocalStorageService.getString('zubix_custom_nearby');
       if (cnRaw != null && cnRaw.isNotEmpty) {
         final list = (jsonDecode(cnRaw) as List<dynamic>)
             .map((item) => BrandModel.fromJson(item as Map<String, dynamic>))
-            .where((b) => !b.id.contains('demo') && !b.id.startsWith('local_'))
             .toList();
         for (final b in list) {
           _nearbyStores.removeWhere((existing) => existing.id == b.id);
@@ -858,12 +841,10 @@ class AppState extends ChangeNotifier {
         }
       }
 
-      // 6. Custom Sessions (Filter out legacy mock sessions)
       final csRaw = LocalStorageService.getString('zubix_custom_sessions');
       if (csRaw != null && csRaw.isNotEmpty) {
         final list = (jsonDecode(csRaw) as List<dynamic>)
             .map((item) => SessionModel.fromJson(item as Map<String, dynamic>))
-            .where((s) => !s.id.contains('demo') && !s.id.startsWith('session_aurora') && !s.id.startsWith('session_botanica') && !s.id.startsWith('session_kanso'))
             .toList();
         for (final s in list) {
           _sessions.removeWhere((existing) => existing.id == s.id);
@@ -871,7 +852,6 @@ class AppState extends ChangeNotifier {
         }
       }
 
-      // Re-save sanitized state to storage
       _saveToStorage();
     } catch (e) {
       debugPrint('Error loading from local storage: $e');
