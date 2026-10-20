@@ -9,6 +9,8 @@ class UserModel {
   final String? district;
   final String role; // 'consumer', 'brand', 'admin'
   final bool isProfileComplete;
+  // 'draft' (profile not submitted), 'pending' (waiting for admin), 'approved', 'rejected'
+  final String approvalStatus;
   final DateTime createdAt;
 
   UserModel({
@@ -22,6 +24,7 @@ class UserModel {
     this.district,
     this.role = 'consumer',
     this.isProfileComplete = false,
+    this.approvalStatus = 'approved',
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -36,6 +39,7 @@ class UserModel {
     'district': district,
     'role': role,
     'isProfileComplete': isProfileComplete,
+    'approvalStatus': approvalStatus,
     'createdAt': createdAt.toIso8601String(),
   };
 
@@ -52,6 +56,7 @@ class UserModel {
       district: json['district'] as String?,
       role: json['role'] as String? ?? 'consumer',
       isProfileComplete: json['isProfileComplete'] as bool? ?? false,
+      approvalStatus: json['approvalStatus'] as String? ?? 'approved',
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),
@@ -69,6 +74,7 @@ class UserModel {
     String? district,
     String? role,
     bool? isProfileComplete,
+    String? approvalStatus,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -81,6 +87,7 @@ class UserModel {
       district: district ?? this.district,
       role: role ?? this.role,
       isProfileComplete: isProfileComplete ?? this.isProfileComplete,
+      approvalStatus: approvalStatus ?? this.approvalStatus,
       createdAt: createdAt,
     );
   }

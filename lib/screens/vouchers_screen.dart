@@ -5,12 +5,12 @@ import '../widgets/voucher_ticket.dart';
 
 class VouchersScreen extends StatefulWidget {
   final AppState state;
-  final VoidCallback onExploreSessions;
+  final VoidCallback onExploreBrands;
 
   const VouchersScreen({
     super.key,
     required this.state,
-    required this.onExploreSessions,
+    required this.onExploreBrands,
   });
 
   @override
@@ -81,7 +81,10 @@ class _VouchersScreenState extends State<VouchersScreen> {
                     const SizedBox(height: 4),
                     const Text(
                       'Ready to use for instant discounts on partner brand websites.',
-                      style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textTertiary,
+                      ),
                     ),
                   ],
                 ),
@@ -105,14 +108,23 @@ class _VouchersScreenState extends State<VouchersScreen> {
                         filter,
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? AppTheme.pureWhite : AppTheme.pureBlack,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? AppTheme.pureWhite
+                              : AppTheme.pureBlack,
                         ),
                       ),
                       selectedColor: AppTheme.pureBlack,
                       backgroundColor: AppTheme.surfaceLight,
-                      side: BorderSide(color: isSelected ? AppTheme.pureBlack : AppTheme.borderLight),
-                      onSelected: (_) => setState(() => _selectedFilter = filter),
+                      side: BorderSide(
+                        color: isSelected
+                            ? AppTheme.pureBlack
+                            : AppTheme.borderLight,
+                      ),
+                      onSelected: (_) =>
+                          setState(() => _selectedFilter = filter),
                     ),
                   );
                 }).toList(),
@@ -130,39 +142,46 @@ class _VouchersScreenState extends State<VouchersScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.card_giftcard_outlined, size: 54, color: AppTheme.textTertiary),
+                          const Icon(
+                            Icons.card_giftcard_outlined,
+                            size: 54,
+                            color: AppTheme.textTertiary,
+                          ),
                           const SizedBox(height: 16),
                           const Text(
                             'No Vouchers in this Section',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           const SizedBox(height: 6),
                           const Text(
                             'Join a Generative Session to win instant brand vouchers.',
-                            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                           const SizedBox(height: 20),
                           ElevatedButton(
-                            onPressed: widget.onExploreSessions,
-                            child: const Text('Explore Generative Sessions'),
+                            onPressed: widget.onExploreBrands,
+                            child: const Text('Explore Brands'),
                           ),
                         ],
                       ),
                     ),
                   )
                 : SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final voucher = displayedVouchers[index];
-                        return VoucherTicket(
-                          voucher: voucher,
-                          onRedeemToggle: () {
-                            widget.state.markVoucherRedeemed(voucher.id);
-                          },
-                        );
-                      },
-                      childCount: displayedVouchers.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final voucher = displayedVouchers[index];
+                      return VoucherTicket(
+                        voucher: voucher,
+                        onRedeemToggle: () {
+                          widget.state.markVoucherRedeemed(voucher.id);
+                        },
+                      );
+                    }, childCount: displayedVouchers.length),
                   ),
           ),
         ],

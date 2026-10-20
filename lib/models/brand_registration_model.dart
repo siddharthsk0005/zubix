@@ -6,7 +6,6 @@ class BrandRegistrationModel {
   String ownerName;
   String ownerPhone;
   String ownerEmail;
-  String password;
   String brandType; // 'online_d2c' or 'local_store'
   String? websiteUrl;
   String? instagramUrl;
@@ -31,7 +30,6 @@ class BrandRegistrationModel {
     required this.ownerName,
     required this.ownerPhone,
     required this.ownerEmail,
-    required this.password,
     required this.brandType,
     required this.categoryId,
     this.websiteUrl,
@@ -55,7 +53,6 @@ class BrandRegistrationModel {
     String? ownerName,
     String? ownerPhone,
     String? ownerEmail,
-    String? password,
     String? brandType,
     String? categoryId,
     String? websiteUrl,
@@ -78,7 +75,6 @@ class BrandRegistrationModel {
       ownerName: ownerName ?? this.ownerName,
       ownerPhone: ownerPhone ?? this.ownerPhone,
       ownerEmail: ownerEmail ?? this.ownerEmail,
-      password: password ?? this.password,
       brandType: brandType ?? this.brandType,
       categoryId: categoryId ?? this.categoryId,
       websiteUrl: websiteUrl ?? this.websiteUrl,
@@ -127,9 +123,8 @@ class BrandRegistrationModel {
       ownerName: json['ownerName'] as String? ?? '',
       ownerPhone: json['ownerPhone'] as String? ?? '',
       ownerEmail: json['ownerEmail'] as String? ?? '',
-      password: json['password'] as String? ?? '',
       brandType: json['brandType'] as String? ?? 'online_d2c',
-      categoryId: json['categoryId'] as String? ?? 'cat_fashion',
+      categoryId: json['categoryId'] as String? ?? '',
       websiteUrl: json['websiteUrl'] as String?,
       instagramUrl: json['instagramUrl'] as String?,
       description: json['description'] as String?,
@@ -140,8 +135,12 @@ class BrandRegistrationModel {
       status: json['status'] as String? ?? 'pending',
       rejectionReason: json['rejectionReason'] as String?,
       adminNotes: json['adminNotes'] as String?,
-      appliedAt: json['appliedAt'] != null ? DateTime.parse(json['appliedAt'] as String) : DateTime.now(),
-      reviewedAt: json['reviewedAt'] != null ? DateTime.parse(json['reviewedAt'] as String) : null,
+      appliedAt: json['appliedAt'] != null
+          ? DateTime.parse(json['appliedAt'] as String)
+          : DateTime.now(),
+      reviewedAt: json['reviewedAt'] != null
+          ? DateTime.parse(json['reviewedAt'] as String)
+          : null,
       reviewedBy: json['reviewedBy'] as String?,
     );
   }

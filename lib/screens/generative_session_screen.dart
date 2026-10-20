@@ -36,18 +36,22 @@ class GenerativeSessionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.pureWhite,
-      appBar: AppBar(
-        title: const Text('Generative Sessions'),
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(height: 1, color: AppTheme.borderLight),
+    // The countdown keeps running in AppState, so leaving mid-wait is blocked; use Cancel instead.
+    return PopScope(
+      canPop: state.participationStatus != SessionParticipationStatus.waiting,
+      child: Scaffold(
+        backgroundColor: AppTheme.pureWhite,
+        appBar: AppBar(
+          title: const Text('Generative Sessions'),
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(1),
+            child: Divider(height: 1, color: AppTheme.borderLight),
+          ),
         ),
-      ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: _buildBody(context),
+        body: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _buildBody(context),
+        ),
       ),
     );
   }
@@ -67,7 +71,9 @@ class GenerativeSessionScreen extends StatelessWidget {
   // 1. SESSION LOBBY
   // ------------------------------------------------------------------
   Widget _buildLobby(BuildContext context) {
-    final activeSessions = state.sessions.where((s) => s.status == 'active').toList();
+    final activeSessions = state.sessions
+        .where((s) => s.status == 'active')
+        .toList();
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -91,7 +97,11 @@ class GenerativeSessionScreen extends StatelessWidget {
                       color: AppTheme.pureBlack,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.bolt, color: AppTheme.pureWhite, size: 16),
+                    child: const Icon(
+                      Icons.bolt,
+                      color: AppTheme.pureWhite,
+                      size: 16,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   const Text(
@@ -135,7 +145,10 @@ class GenerativeSessionScreen extends StatelessWidget {
             ),
             Text(
               '${activeSessions.length} Available',
-              style: const TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppTheme.textTertiary,
+              ),
             ),
           ],
         ),
@@ -154,7 +167,8 @@ class GenerativeSessionScreen extends StatelessWidget {
             final allBrands = [...state.brands, ...state.nearbyStores];
             final brand = allBrands.firstWhere(
               (b) => b.id == session.brandId,
-              orElse: () => allBrands.isNotEmpty ? allBrands.first : state.brands.first,
+              orElse: () =>
+                  allBrands.isNotEmpty ? allBrands.first : state.brands.first,
             );
 
             return Container(
@@ -177,12 +191,13 @@ class GenerativeSessionScreen extends StatelessWidget {
                           width: 44,
                           height: 44,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 44,
-                            height: 44,
-                            color: AppTheme.surfaceLight,
-                            child: const Icon(Icons.store),
-                          ),
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                width: 44,
+                                height: 44,
+                                color: AppTheme.surfaceLight,
+                                child: const Icon(Icons.store),
+                              ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -200,13 +215,19 @@ class GenerativeSessionScreen extends StatelessWidget {
                             ),
                             Text(
                               'Session created by: ${session.sessionCreatedBy}',
-                              style: const TextStyle(fontSize: 11.5, color: AppTheme.textSecondary),
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: AppTheme.textSecondary,
+                              ),
                             ),
                           ],
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppTheme.surfaceLight,
                           borderRadius: BorderRadius.circular(20),
@@ -214,11 +235,18 @@ class GenerativeSessionScreen extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.timer_outlined, size: 12, color: AppTheme.pureBlack),
+                            const Icon(
+                              Icons.timer_outlined,
+                              size: 12,
+                              color: AppTheme.pureBlack,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '${session.waitingDurationSeconds}s wait',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -295,7 +323,9 @@ class GenerativeSessionScreen extends StatelessWidget {
                     value: progress,
                     strokeWidth: 6,
                     backgroundColor: AppTheme.borderLight,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.pureBlack),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppTheme.pureBlack,
+                    ),
                   ),
                 ),
                 Column(
@@ -384,7 +414,10 @@ class GenerativeSessionScreen extends StatelessWidget {
             const SizedBox(height: 32),
 
             OutlinedButton(
-              onPressed: () => state.cancelParticipation(),
+              onPressed: () {
+                state.cancelParticipation();
+                Navigator.of(context).pop();
+              },
               child: const Text('Cancel & Exit Session'),
             ),
           ],
@@ -413,7 +446,11 @@ class GenerativeSessionScreen extends StatelessWidget {
                 color: AppTheme.pureBlack,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check, color: AppTheme.pureWhite, size: 36),
+              child: const Icon(
+                Icons.check,
+                color: AppTheme.pureWhite,
+                size: 36,
+              ),
             ),
 
             const SizedBox(height: 20),
@@ -452,7 +489,10 @@ class GenerativeSessionScreen extends StatelessWidget {
                 children: [
                   Text(
                     voucher.brandName,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -466,7 +506,10 @@ class GenerativeSessionScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.pureWhite,
                       borderRadius: BorderRadius.circular(10),
@@ -495,7 +538,10 @@ class GenerativeSessionScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   const Text(
                     'Saved to "My Vouchers" in your bottom navigation bar.',
-                    style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                 ],
               ),

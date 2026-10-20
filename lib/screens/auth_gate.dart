@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import 'login_signup_screen.dart';
+import 'approval_status_screen.dart';
 import 'profile_onboarding_screen.dart';
 import 'main_shell.dart';
 
@@ -77,15 +78,35 @@ class _AuthGateState extends ConsumerState<AuthGate> {
       return ProfileOnboardingScreen(appState: widget.state);
     }
 
-    // 3. Unauthenticated: Not logged in
+    // 3. Profile submitted, waiting for admin approval (or rejected)
+    if (authState.user != null &&
+        authState.user!.role == 'consumer' &&
+        authState.user!.isProfileComplete &&
+        authState.user!.approvalStatus != 'approved') {
+      return const ApprovalStatusScreen();
+    }
+
+    // 4. Unauthenticated: Not logged in
     if (!authState.isAuthenticated) {
       return const LoginSignupScreen();
     }
 
-    // 4. Authenticated & Profile Completed: Main App
+    // 5. Authenticated & Profile Completed: Main App
     if (widget.state.currentUserId != authState.user?.id && authState.user != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         widget.state.setCurrentUserId(authState.user!.id);
+      });
+    }
+
+    if (authState.justApproved) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !ref.read(authProvider).justApproved) return;
+        ref.read(authProvider.notifier).acknowledgeApproval();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Your Zubix account has been approved. Welcome!'),
+          ),
+        );
       });
     }
 

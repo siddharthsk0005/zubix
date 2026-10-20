@@ -1,8 +1,10 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, BrandRegistration } from '@prisma/client';
 import { randomInt } from 'crypto';
+import { hashPassword, verifyPassword } from './password';
+import { issueAdminToken, issueBrandToken, issueUserToken, requireAdmin, requireBrand, requireBrandOrAdmin, requireCustomer } from './admin-auth';
 
 dotenv.config();
 
@@ -47,17 +49,32 @@ app.post('/api/auth/send-otp', async (req: Request, res: Response) => {
     const code = String(randomInt(1000, 10000));
     pendingOtps.set(cleanPhone, { code, expiresAt: Date.now() + OTP_TTL_MS });
     // TODO: dispatch via an SMS gateway (Twilio, MSG91, Firebase). Until then, dev builds log the code.
-    if (process.env.NODE_ENV !== 'production') {
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
       console.log(`[dev] OTP for ${cleanPhone}: ${code}`);
     }
     return res.json({
       success: true,
       message: 'OTP dispatched successfully.',
       phone: cleanPhone,
+      // Dev builds only: lets the app display the code until an SMS gateway is wired up.
+      ...(isDev ? { devOtp: code } : {}),
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
+});
+
+// Check an OTP without creating a user (used by brand registration). Consumes the code on success.
+app.post('/api/auth/check-otp', (req: Request, res: Response) => {
+  const { phone, otp } = req.body;
+  const cleanPhone = String(phone ?? '').trim();
+  const pending = pendingOtps.get(cleanPhone);
+  if (!pending || pending.expiresAt < Date.now() || pending.code !== String(otp ?? '').trim()) {
+    return res.status(400).json({ error: 'Invalid or expired verification code. Please request a new one.' });
+  }
+  pendingOtps.delete(cleanPhone);
+  return res.json({ success: true });
 });
 
 // Verify OTP & Login / Pre-Register
@@ -86,6 +103,7 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response) => {
           phone: cleanPhone,
           role: 'consumer',
           isProfileComplete: false,
+          approvalStatus: 'draft',
         },
       });
     }
@@ -94,6 +112,7 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response) => {
       success: true,
       isNewUser,
       isProfileComplete: user.isProfileComplete,
+      token: issueUserToken(user.id),
       user: {
         id: user.id,
         phone: user.phone,
@@ -105,6 +124,7 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response) => {
         district: user.district,
         role: user.role,
         isProfileComplete: user.isProfileComplete,
+        approvalStatus: user.approvalStatus,
         createdAt: user.createdAt,
       },
     });
@@ -113,7 +133,6 @@ app.post('/api/auth/verify-otp', async (req: Request, res: Response) => {
   }
 });
 
-// Social Login (Google / Apple)
 app.post('/api/auth/social-login', async (req: Request, res: Response) => {
   try {
     const { provider, email, name } = req.body;
@@ -135,6 +154,7 @@ app.post('/api/auth/social-login', async (req: Request, res: Response) => {
           name: name ? String(name).trim() : 'Zubix Member',
           role: 'consumer',
           isProfileComplete: false,
+          approvalStatus: 'draft',
         },
       });
     }
@@ -144,6 +164,7 @@ app.post('/api/auth/social-login', async (req: Request, res: Response) => {
       provider: provider || 'social',
       isNewUser,
       isProfileComplete: user.isProfileComplete,
+      token: issueUserToken(user.id),
       user: {
         id: user.id,
         phone: user.phone,
@@ -155,6 +176,7 @@ app.post('/api/auth/social-login', async (req: Request, res: Response) => {
         district: user.district,
         role: user.role,
         isProfileComplete: user.isProfileComplete,
+        approvalStatus: user.approvalStatus,
         createdAt: user.createdAt,
       },
     });
@@ -182,6 +204,7 @@ app.post('/api/auth/complete-profile', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Submitting the profile sends the sign-up to admin review. Already-approved users keep their access.
     const updatedUser = await prisma.user.update({
       where: { id: String(userId) },
       data: {
@@ -191,6 +214,7 @@ app.post('/api/auth/complete-profile', async (req: Request, res: Response) => {
         state: String(state).trim(),
         district: String(district).trim(),
         isProfileComplete: true,
+        approvalStatus: existingUser.approvalStatus === 'approved' ? 'approved' : 'pending',
       },
     });
 
@@ -198,6 +222,7 @@ app.post('/api/auth/complete-profile', async (req: Request, res: Response) => {
       success: true,
       user: {
         id: updatedUser.id,
+        approvalStatus: updatedUser.approvalStatus,
         phone: updatedUser.phone,
         email: updatedUser.email,
         displayName: updatedUser.name || 'Zubix Member',
@@ -212,6 +237,91 @@ app.post('/api/auth/complete-profile', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function parseCustomerProfile(body: any): { error?: string; data?: { name: string; email: string | null; country: string; state: string; district: string } } {
+  const name = String(body?.name ?? '').trim();
+  const email = String(body?.email ?? '').trim().toLowerCase();
+  const country = String(body?.country ?? '').trim();
+  const state = String(body?.state ?? '').trim();
+  const district = String(body?.district ?? '').trim();
+  if (!name) return { error: 'Full Name is required' };
+  if (!country) return { error: 'Country is required' };
+  if (!state) return { error: 'State is required' };
+  if (!district) return { error: 'District is required' };
+  if (email && !EMAIL_PATTERN.test(email)) return { error: 'Enter a valid email address' };
+  return { data: { name, email: email || null, country, state, district } };
+}
+
+function publicCustomer(user: { id: string; phone: string | null; email: string | null; name: string | null; country: string | null; state: string | null; district: string | null; role: string; isProfileComplete: boolean; approvalStatus: string; createdAt: Date }) {
+  return {
+    id: user.id,
+    phone: user.phone,
+    email: user.email,
+    displayName: user.name || 'Zubix Member',
+    name: user.name,
+    country: user.country,
+    state: user.state,
+    district: user.district,
+    role: user.role,
+    isProfileComplete: user.isProfileComplete,
+    approvalStatus: user.approvalStatus,
+    createdAt: user.createdAt,
+  };
+}
+
+// Customer: edits own profile. Phone is the login ID and stays locked. No re-approval is needed.
+app.put('/api/auth/profile', requireCustomer, async (req: Request, res: Response) => {
+  try {
+    const parsed = parseCustomerProfile(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const id = String(res.locals.userId);
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user || user.role !== 'consumer') return res.status(404).json({ error: 'User not found' });
+
+    const updated = await prisma.user.update({ where: { id }, data: parsed.data! });
+    return res.json({ success: true, user: publicCustomer(updated) });
+  } catch (error: any) {
+    if (error.code === 'P2002') return res.status(409).json({ error: 'This email is already used by another account' });
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: lists every customer (any approval status) for editing.
+app.get('/api/customers', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: { role: 'consumer' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, name: true, phone: true, email: true, country: true, state: true, district: true, approvalStatus: true, createdAt: true },
+    });
+    res.json(users);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: edits any customer's profile.
+app.put('/api/customers/:id', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const parsed = parseCustomerProfile(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user || user.role !== 'consumer') return res.status(404).json({ error: 'Customer not found' });
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: parsed.data!,
+      select: { id: true, name: true, phone: true, email: true, country: true, state: true, district: true, approvalStatus: true, createdAt: true },
+    });
+    res.json(updated);
+  } catch (error: any) {
+    if (error.code === 'P2002') return res.status(409).json({ error: 'This email is already used by another account' });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -238,8 +348,23 @@ app.get('/api/auth/me', async (req: Request, res: Response) => {
       district: user.district,
       role: user.role,
       isProfileComplete: user.isProfileComplete,
+      approvalStatus: user.approvalStatus,
       createdAt: user.createdAt,
     });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Approval status for a customer's sign-up (polled while waiting for admin review)
+app.get('/api/auth/approval-status/:userId', async (req: Request, res: Response) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: String(req.params.userId) },
+      select: { id: true, approvalStatus: true, isProfileComplete: true },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    return res.json(user);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
@@ -313,6 +438,65 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
   }
 });
 
+// Admin accounts are created manually with `npm run create-admin`.
+app.post('/api/admin/login', async (req: Request, res: Response) => {
+  try {
+    const email = String(req.body?.email || '').toLowerCase().trim();
+    const password = String(req.body?.password || '');
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.role !== 'admin' || !(await verifyPassword(password, user.passwordHash))) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      displayName: user.name || 'Zubix Admin',
+      role: user.role,
+      token: issueAdminToken(user.id),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Brand sign-in uses the email and password from the brand's application.
+// Only approved brands get a token.
+app.post('/api/brand/login', async (req: Request, res: Response) => {
+  try {
+    const email = String(req.body?.email || '').toLowerCase().trim();
+    const password = String(req.body?.password || '');
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+    const reg = await prisma.brandRegistration.findFirst({
+      where: { ownerEmail: email },
+      orderBy: { appliedAt: 'desc' },
+    });
+    if (!reg || !(await verifyPassword(password, reg.passwordHash))) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    if (reg.status === 'pending') {
+      return res.status(403).json({ error: 'Your brand application is still under review' });
+    }
+    if (reg.status !== 'approved') {
+      return res.status(403).json({ error: 'Your brand application was not approved' });
+    }
+
+    const brand = await prisma.brand.findUnique({ where: { id: reg.id } });
+    if (!brand) return res.status(403).json({ error: 'Your brand profile is not active yet, please contact Zubix' });
+
+    res.json({
+      token: issueBrandToken(brand.id),
+      brand,
+      registration: toPublicRegistration(reg),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ----------------------------------------------------
 // 1. CATEGORIES API (Live Supabase)
 // ----------------------------------------------------
@@ -327,7 +511,7 @@ app.get('/api/categories', async (_req: Request, res: Response) => {
   }
 });
 
-app.post('/api/categories', async (req: Request, res: Response) => {
+app.post('/api/categories', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { name, iconName = 'category' } = req.body;
     if (!name) return res.status(400).json({ error: 'Category name is required' });
@@ -350,7 +534,7 @@ app.post('/api/categories', async (req: Request, res: Response) => {
   }
 });
 
-app.put('/api/categories/:id', async (req: Request, res: Response) => {
+app.put('/api/categories/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
     const { name, isActive } = req.body;
@@ -368,7 +552,7 @@ app.put('/api/categories/:id', async (req: Request, res: Response) => {
   }
 });
 
-app.delete('/api/categories/:id', async (req: Request, res: Response) => {
+app.delete('/api/categories/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
     await prisma.category.delete({ where: { id } });
@@ -462,7 +646,7 @@ app.get('/api/brands', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/brands', async (req: Request, res: Response) => {
+app.post('/api/brands', requireAdmin, async (req: Request, res: Response) => {
   try {
     const {
       name,
@@ -500,7 +684,7 @@ app.post('/api/brands', async (req: Request, res: Response) => {
   }
 });
 
-app.put('/api/brands/:id/approve', async (req: Request, res: Response) => {
+app.put('/api/brands/:id/approve', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
     const { isApproved = true } = req.body;
@@ -515,9 +699,99 @@ app.put('/api/brands/:id/approve', async (req: Request, res: Response) => {
   }
 });
 
-app.put('/api/brands/:id', async (req: Request, res: Response) => {
+// Brand or admin: edits the brand profile. The registration (owner details, shown in the brand portal)
+// and the live brand (shown to customers) share one id, so both are updated together.
+app.put('/api/brands/:id/profile', requireBrandOrAdmin, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
+    if (!res.locals.isAdmin && res.locals.brandId !== id) {
+      return res.status(403).json({ error: 'You can only edit your own brand' });
+    }
+    const body = req.body || {};
+    const text = (value: unknown) => (value === undefined ? undefined : String(value ?? '').trim());
+    const optional = (value: unknown) => {
+      const clean = text(value);
+      return clean === undefined ? undefined : clean || null;
+    };
+
+    const brandName = text(body.brandName);
+    const brandType = text(body.brandType);
+    const contactEmail = text(body.contactEmail)?.toLowerCase();
+    const contactPhone = text(body.contactPhone);
+    const ownerName = text(body.ownerName);
+    const categoryId = text(body.categoryId);
+
+    if (brandName !== undefined && !brandName) return res.status(400).json({ error: 'Brand name is required' });
+    if (brandType !== undefined && brandType !== 'online_d2c' && brandType !== 'local_store') {
+      return res.status(400).json({ error: "brandType must be 'online_d2c' or 'local_store'" });
+    }
+    if (contactEmail !== undefined && !EMAIL_PATTERN.test(contactEmail)) {
+      return res.status(400).json({ error: 'Enter a valid contact email' });
+    }
+    if (categoryId !== undefined) {
+      const category = await prisma.category.findUnique({ where: { id: categoryId } });
+      if (!category) return res.status(400).json({ error: 'Selected category does not exist' });
+    }
+
+    const websiteUrl = text(body.websiteUrl);
+    const instagramUrl = text(body.instagramUrl);
+    const description = text(body.description);
+    const city = optional(body.city);
+    const area = optional(body.area);
+    const address = optional(body.address);
+    const operatingHours = optional(body.operatingHours);
+
+    const registrationData = {
+      ...(brandName !== undefined && { brandName }),
+      ...(ownerName && { ownerName }),
+      ...(contactPhone !== undefined && { ownerPhone: contactPhone }),
+      ...(contactEmail !== undefined && { ownerEmail: contactEmail }),
+      ...(brandType !== undefined && { brandType }),
+      ...(websiteUrl !== undefined && { websiteUrl: websiteUrl || null }),
+      ...(instagramUrl !== undefined && { instagramUrl: instagramUrl || null }),
+      ...(description !== undefined && { description: description || null }),
+      ...(categoryId !== undefined && { categoryId }),
+      ...(city !== undefined && { city }),
+      ...(area !== undefined && { area }),
+      ...(address !== undefined && { address }),
+      ...(operatingHours !== undefined && { operatingHours }),
+    };
+
+    const brandData = {
+      ...(brandName !== undefined && { name: brandName }),
+      ...(contactEmail !== undefined && { contactEmail }),
+      ...(contactPhone !== undefined && { contactPhone }),
+      ...(brandType !== undefined && { storeType: brandType, isPhysicalStore: brandType === 'local_store' }),
+      ...(websiteUrl !== undefined && { websiteUrl }),
+      ...(instagramUrl !== undefined && { socialLinks: { instagram: instagramUrl } }),
+      ...(description !== undefined && { bio: description }),
+      ...(categoryId !== undefined && { categoryId }),
+      ...(city !== undefined && { city }),
+      ...(area !== undefined && { area }),
+      ...(address !== undefined && { address }),
+      ...(operatingHours !== undefined && { timings: operatingHours || '10:00 AM - 9:30 PM' }),
+    };
+
+    const [, , registration, brand] = await prisma.$transaction([
+      prisma.brandRegistration.updateMany({ where: { id }, data: registrationData }),
+      prisma.brand.updateMany({ where: { id }, data: brandData }),
+      prisma.brandRegistration.findUnique({ where: { id } }),
+      prisma.brand.findUnique({ where: { id } }),
+    ]);
+    if (!registration && !brand) return res.status(404).json({ error: 'Brand not found' });
+
+    res.json({ success: true, registration: registration ? toPublicRegistration(registration) : null, brand });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/brands/:id', requireBrandOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    if (!res.locals.isAdmin && res.locals.brandId !== id) {
+      return res.status(403).json({ error: 'You can only edit your own brand' });
+    }
     const {
       name,
       tagline,
@@ -643,7 +917,7 @@ app.get('/api/sessions/active', async (_req: Request, res: Response) => {
   }
 });
 
-app.post('/api/sessions', async (req: Request, res: Response) => {
+app.post('/api/sessions', requireAdmin, async (req: Request, res: Response) => {
   try {
     const {
       brandId,
@@ -746,6 +1020,321 @@ app.put('/api/vouchers/:id/redeem', async (req: Request, res: Response) => {
     const updated = await prisma.voucherClaim.update({
       where: { id },
       data: { isRedeemed: true },
+    });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ----------------------------------------------------
+// 6. BRAND REGISTRATIONS & SESSION REQUESTS (Live Supabase)
+// ----------------------------------------------------
+function toPublicRegistration(reg: BrandRegistration) {
+  return { ...reg, passwordHash: undefined };
+}
+
+function slugPrefix(name: string): string {
+  const clean = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  if (clean.length >= 4) return clean.substring(0, 4);
+  return clean || 'BRAND';
+}
+
+// Public: a brand submits an application. Password is hashed and never returned.
+app.post('/api/brand-registrations', async (req: Request, res: Response) => {
+  try {
+    const {
+      id, brandName, ownerName, ownerPhone = '', ownerEmail, password,
+      brandType = 'online_d2c', categoryId, websiteUrl, instagramUrl, description,
+      city, area, address, operatingHours,
+    } = req.body;
+
+    if (!brandName || !ownerName || !ownerEmail || !password || !categoryId) {
+      return res.status(400).json({ error: 'Brand name, owner name, email, password and category are required' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    // Reapplying after a rejection replaces the old rejected application.
+    if (ownerPhone) {
+      await prisma.brandRegistration.deleteMany({ where: { ownerPhone: String(ownerPhone), status: 'rejected' } });
+    }
+
+    const created = await prisma.brandRegistration.create({
+      data: {
+        ...(id && { id: String(id) }),
+        brandName,
+        ownerName,
+        ownerPhone: String(ownerPhone),
+        ownerEmail: String(ownerEmail).toLowerCase().trim(),
+        passwordHash: await hashPassword(String(password)),
+        brandType,
+        categoryId,
+        websiteUrl: websiteUrl ?? null,
+        instagramUrl: instagramUrl ?? null,
+        description: description ?? null,
+        city: city ?? null,
+        area: area ?? null,
+        address: address ?? null,
+        operatingHours: operatingHours ?? null,
+      },
+    });
+    res.status(201).json(toPublicRegistration(created));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/brand-registrations', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const status = req.query.status ? String(req.query.status) : undefined;
+    const regs = await prisma.brandRegistration.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { appliedAt: 'desc' },
+    });
+    res.json(regs.map(toPublicRegistration));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: customer sign-ups awaiting approval (defaults to pending).
+app.get('/api/customer-approvals', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const status = req.query.status ? String(req.query.status) : 'pending';
+    const users = await prisma.user.findMany({
+      where: { role: 'consumer', approvalStatus: status },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, name: true, phone: true, email: true, country: true, state: true, district: true, approvalStatus: true, createdAt: true },
+    });
+    res.json(users);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: approve or reject a customer sign-up.
+app.put('/api/customer-approvals/:id/review', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { action } = req.body;
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({ error: "action must be 'approve' or 'reject'" });
+    }
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user || user.role !== 'consumer') return res.status(404).json({ error: 'Customer not found' });
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { approvalStatus: action === 'approve' ? 'approved' : 'rejected' },
+      select: { id: true, name: true, phone: true, email: true, country: true, state: true, district: true, approvalStatus: true, createdAt: true },
+    });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: approve (creates the live Brand with the same id) or reject.
+app.put('/api/brand-registrations/:id/review', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { action, reason, reviewedBy = 'Zubix Admin' } = req.body;
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({ error: "action must be 'approve' or 'reject'" });
+    }
+
+    const reg = await prisma.brandRegistration.findUnique({ where: { id } });
+    if (!reg) return res.status(404).json({ error: 'Registration not found' });
+
+    const reviewed = { reviewedAt: new Date(), reviewedBy: String(reviewedBy) };
+
+    if (action === 'reject') {
+      const updated = await prisma.brandRegistration.update({
+        where: { id },
+        data: { status: 'rejected', rejectionReason: String(reason || 'Criteria not met'), ...reviewed },
+      });
+      return res.json(toPublicRegistration(updated));
+    }
+
+    const isPhysical = reg.brandType === 'local_store';
+    const brandData = {
+      name: reg.brandName,
+      tagline: isPhysical ? 'Boutique Atelier' : 'Curated D2C Brand',
+      bio: reg.description || `${reg.brandName} exclusive collections on Zubix.`,
+      logoUrl: '',
+      showcaseImages: [],
+      websiteUrl: reg.websiteUrl || '',
+      socialLinks: { instagram: reg.instagramUrl || '' },
+      contactEmail: reg.ownerEmail,
+      contactPhone: reg.ownerPhone,
+      categoryId: reg.categoryId,
+      isApproved: true,
+      isPhysicalStore: isPhysical,
+      storeType: reg.brandType,
+      city: reg.city,
+      area: reg.area,
+      address: reg.address,
+      timings: reg.operatingHours || '10:00 AM - 9:00 PM',
+    };
+
+    const [updated] = await prisma.$transaction([
+      prisma.brandRegistration.update({ where: { id }, data: { status: 'approved', ...reviewed } }),
+      prisma.brand.upsert({ where: { id }, create: { id, ...brandData }, update: brandData }),
+    ]);
+    res.json(toPublicRegistration(updated));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Brand: requests a generative session for its own brand only.
+app.post('/api/session-requests', requireBrand, async (req: Request, res: Response) => {
+  try {
+    const { id, brandId, brandName, brandType = 'online_d2c', requestedDate, couponTiers, additionalNotes, createdBy } = req.body;
+    if (!brandId || !brandName || !requestedDate || !Array.isArray(couponTiers) || couponTiers.length === 0) {
+      return res.status(400).json({ error: 'Brand, requested date and at least one coupon tier are required' });
+    }
+    const creatorName = typeof createdBy === 'string' ? createdBy.trim() : '';
+    if (!creatorName) {
+      return res.status(400).json({ error: 'Session Created By (person name) is required' });
+    }
+    if (String(brandId) !== res.locals.brandId) {
+      return res.status(403).json({ error: 'You can only request sessions for your own brand' });
+    }
+    const date = new Date(requestedDate);
+    if (Number.isNaN(date.getTime())) return res.status(400).json({ error: 'Invalid requested date' });
+
+    const created = await prisma.sessionRequest.create({
+      data: {
+        ...(id && { id: String(id) }),
+        brandId: String(brandId),
+        brandName,
+        brandType,
+        createdBy: creatorName,
+        requestedDate: date,
+        couponTiers,
+        additionalNotes: additionalNotes ?? null,
+      },
+    });
+    res.status(201).json(created);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Brand: lists only its own session requests.
+app.get('/api/brand/session-requests', requireBrand, async (_req: Request, res: Response) => {
+  try {
+    const requests = await prisma.sessionRequest.findMany({
+      where: { brandId: res.locals.brandId },
+      orderBy: { submittedAt: 'desc' },
+    });
+    res.json(requests);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/session-requests', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const status = req.query.status ? String(req.query.status) : undefined;
+    const requests = await prisma.sessionRequest.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { submittedAt: 'desc' },
+    });
+    res.json(requests);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: approve (creates the live active session), reject, or propose alternate dates.
+app.put('/api/session-requests/:id/review', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { action, reason, proposedDates, reviewedBy = 'Zubix Admin' } = req.body;
+    if (!['approve', 'reject', 'propose'].includes(action)) {
+      return res.status(400).json({ error: "action must be 'approve', 'reject' or 'propose'" });
+    }
+
+    const existing = await prisma.sessionRequest.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Session request not found' });
+
+    const reviewed = { reviewedAt: new Date(), reviewedBy: String(reviewedBy) };
+
+    if (action === 'reject') {
+      const updated = await prisma.sessionRequest.update({
+        where: { id },
+        data: { status: 'rejected', rejectionReason: String(reason || 'Declined'), ...reviewed },
+      });
+      return res.json(updated);
+    }
+
+    if (action === 'propose') {
+      const dates = Array.isArray(proposedDates) ? proposedDates.map((d: string) => new Date(d)) : [];
+      if (dates.length === 0 || dates.some((d) => Number.isNaN(d.getTime()))) {
+        return res.status(400).json({ error: 'At least one valid proposed date is required' });
+      }
+      const updated = await prisma.sessionRequest.update({
+        where: { id },
+        data: { status: 'dates_proposed', proposedDates: dates, ...reviewed },
+      });
+      return res.json(updated);
+    }
+
+    if (existing.status === 'approved') return res.json(existing);
+
+    const brand = await prisma.brand.findUnique({ where: { id: existing.brandId } });
+    if (!brand) {
+      return res.status(409).json({ error: 'Approve the brand before scheduling its session' });
+    }
+
+    const tiers = existing.couponTiers as Array<{ slots?: number; discountPct?: number }>;
+    const topDiscount = tiers[0]?.discountPct ?? 20;
+    const totalSlots = tiers.reduce((sum, t) => sum + (Number(t.slots) || 0), 0);
+
+    const [updated] = await prisma.$transaction([
+      prisma.sessionRequest.update({ where: { id }, data: { status: 'approved', ...reviewed } }),
+      prisma.session.create({
+        data: {
+          title: `${existing.brandName} Generative Session`,
+          brandId: existing.brandId,
+          sessionCreatedBy: existing.brandName,
+          waitingDurationSeconds: 15,
+          discountValue: `${topDiscount}% OFF`,
+          couponCode: `ZUBIX-${slugPrefix(existing.brandName)}-${topDiscount}`,
+          status: 'active',
+          totalVouchersPool: totalSlots,
+        },
+      }),
+    ]);
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Brand: confirms one of the dates the admin proposed (own requests only).
+app.put('/api/session-requests/:id/confirm', requireBrand, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const confirmedDate = new Date(req.body?.confirmedDate);
+    if (Number.isNaN(confirmedDate.getTime())) return res.status(400).json({ error: 'Invalid confirmed date' });
+
+    const existing = await prisma.sessionRequest.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Session request not found' });
+    if (existing.brandId !== res.locals.brandId) {
+      return res.status(403).json({ error: 'You can only confirm your own session requests' });
+    }
+    if (existing.status !== 'dates_proposed') {
+      return res.status(409).json({ error: 'No dates are awaiting confirmation for this request' });
+    }
+
+    const updated = await prisma.sessionRequest.update({
+      where: { id },
+      data: { status: 'brand_confirmed', confirmedDate },
     });
     res.json(updated);
   } catch (error: any) {

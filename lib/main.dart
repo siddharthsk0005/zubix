@@ -3,10 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'providers/auth_provider.dart';
+import 'services/api_service.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
-import 'screens/web_dashboard_screen.dart';
+import 'screens/admin_gate.dart';
 import 'screens/brand_portal_screen.dart';
 import 'screens/auth_gate.dart';
 
@@ -24,14 +25,29 @@ void main() async {
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
   }
+  ApiService.restoreSessions();
   runApp(
     ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
       child: const ZubixApp(),
     ),
   );
+}
+
+// Exact paths only. Anything else falls back to the consumer app at '/'.
+const Set<String> webRoutes = {'/', '/admin', '/brands', '/brands/register'};
+
+String normalizeWebRoute(String path) {
+  var route = path.toLowerCase();
+  if (route.length > 1 && route.endsWith('/')) {
+    route = route.substring(0, route.length - 1);
+  }
+  return route;
+}
+
+String resolveWebRoute(String path) {
+  final route = normalizeWebRoute(path);
+  return webRoutes.contains(route) ? route : '/';
 }
 
 class ZubixApp extends StatefulWidget {
@@ -56,38 +72,19 @@ class _ZubixAppState extends State<ZubixApp> {
     super.dispose();
   }
 
-  String get _initialWebRoute {
-    if (!kIsWeb) return '/';
-    final uri = Uri.base;
-    final path = uri.path.toLowerCase();
-    final fragment = uri.fragment.toLowerCase();
-
-    if (path.contains('admin') || fragment.contains('admin') || uri.queryParameters.containsKey('admin')) {
-      return '/admin';
-    }
-    if (path.contains('login') || fragment.contains('login') || uri.queryParameters.containsKey('login')) {
-      return '/brands/login';
-    }
-    if (path.contains('register') || fragment.contains('register') || uri.queryParameters.containsKey('register')) {
-      return '/brands/register';
-    }
-    if (path.contains('brand') || fragment.contains('brand') || uri.queryParameters.containsKey('brand') || uri.queryParameters.containsKey('brands')) {
-      return '/brands';
-    }
-    return '/';
-  }
+  String get _initialWebRoute => kIsWeb ? resolveWebRoute(Uri.base.path) : '/';
 
   Widget _screenForRoute(String route) {
-    if (route == '/admin') {
-      return WebDashboardScreen(state: _appState);
+    switch (route) {
+      case '/admin':
+        return AdminGate(state: _appState);
+      case '/brands':
+        return BrandPortalScreen(state: _appState, initialAuthView: 'gateway');
+      case '/brands/register':
+        return BrandPortalScreen(state: _appState, initialAuthView: 'register');
+      default:
+        return AuthGate(state: _appState);
     }
-    if (route == '/brands/register') {
-      return BrandPortalScreen(state: _appState, initialAuthView: 'register');
-    }
-    if (route == '/brands/login' || route == '/brands') {
-      return BrandPortalScreen(state: _appState, initialAuthView: 'gateway');
-    }
-    return AuthGate(state: _appState);
   }
 
   @override
@@ -103,27 +100,9 @@ class _ZubixAppState extends State<ZubixApp> {
           theme: AppTheme.lightTheme,
           home: _screenForRoute(initialRoute),
           onGenerateRoute: (settings) {
-            final name = (settings.name ?? '').toLowerCase();
-            if (name.contains('admin') || name.contains('dashboard')) {
-              return MaterialPageRoute(
-                builder: (_) => WebDashboardScreen(state: _appState),
-                settings: settings,
-              );
-            }
-            if (name.contains('register')) {
-              return MaterialPageRoute(
-                builder: (_) => BrandPortalScreen(state: _appState, initialAuthView: 'register'),
-                settings: settings,
-              );
-            }
-            if (name.contains('brand') || name.contains('login')) {
-              return MaterialPageRoute(
-                builder: (_) => BrandPortalScreen(state: _appState, initialAuthView: 'gateway'),
-                settings: settings,
-              );
-            }
+            final route = normalizeWebRoute(settings.name ?? '/');
             return MaterialPageRoute(
-              builder: (_) => AuthGate(state: _appState),
+              builder: (_) => _screenForRoute(route),
               settings: settings,
             );
           },

@@ -86,6 +86,48 @@ model VoucherClaim {
   terms         String?
 }
 
+model BrandRegistration {
+  id              String    @id @default(uuid())
+  brandName       String
+  ownerName       String
+  ownerPhone      String
+  ownerEmail      String
+  passwordHash    String    // scrypt hash, never returned by the API
+  brandType       String    @default("online_d2c") // "online_d2c" or "local_store"
+  websiteUrl      String?
+  instagramUrl    String?
+  description     String?
+  categoryId      String
+  city            String?
+  area            String?
+  address         String?
+  operatingHours  String?
+  status          String    @default("pending") // pending, approved, rejected
+  rejectionReason String?
+  adminNotes      String?
+  appliedAt       DateTime  @default(now())
+  reviewedAt      DateTime?
+  reviewedBy      String?
+}
+
+model SessionRequest {
+  id              String    @id @default(uuid())
+  brandId         String
+  brandName       String
+  brandType       String    @default("online_d2c")
+  createdBy       String?   // name of the person who created this session
+  requestedDate   DateTime
+  couponTiers     Json
+  additionalNotes String?
+  status          String    @default("pending_approval") // pending_approval, approved, rejected, dates_proposed, brand_confirmed
+  rejectionReason String?
+  proposedDates   DateTime[]
+  confirmedDate   DateTime?
+  submittedAt     DateTime  @default(now())
+  reviewedAt      DateTime?
+  reviewedBy      String?
+}
+
 model User {
   id                String         @id @default(uuid())
   phone             String?        @unique
@@ -95,8 +137,11 @@ model User {
   state             String?
   district          String?
   role              String         @default("consumer") // consumer, brand, admin
+  passwordHash      String?        // set only for admin accounts (created via create-admin script)
   avatarUrl         String?
   isProfileComplete Boolean        @default(false)
+  // Consumer sign-ups start as "pending" and need admin approval before login. Existing users stay "approved".
+  approvalStatus    String         @default("approved") // draft, pending, approved, rejected
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   vouchers          VoucherClaim[]

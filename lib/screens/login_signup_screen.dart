@@ -12,7 +12,10 @@ class LoginSignupScreen extends ConsumerStatefulWidget {
 
 class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
   final TextEditingController _phoneController = TextEditingController();
-  final List<TextEditingController> _otpControllers = List.generate(4, (_) => TextEditingController());
+  final List<TextEditingController> _otpControllers = List.generate(
+    4,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _otpFocusNodes = List.generate(4, (_) => FocusNode());
 
   bool _otpSent = false;
@@ -50,7 +53,19 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
         _otpSent = true;
       });
       _otpFocusNodes[0].requestFocus();
+      _showDevOtp(ref.read(authProvider).devOtp);
     }
+  }
+
+  void _showDevOtp(String? code) {
+    if (code == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppTheme.pureBlack,
+        duration: const Duration(seconds: 10),
+        content: Text('Dev build - your code is $code'),
+      ),
+    );
   }
 
   Future<void> _handleVerifyOtp() async {
@@ -69,13 +84,13 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
   }
 
   Future<void> _handleSocialLogin(String provider) async {
-    final sampleEmail = provider == 'Google' ? 'member.google@zubix.example' : 'member.apple@zubix.example';
+    final sampleEmail = provider == 'Google'
+        ? 'member.google@zubix.example'
+        : 'member.apple@zubix.example';
     final sampleName = provider == 'Google' ? 'Google Member' : 'Apple Member';
-    await ref.read(authProvider.notifier).loginWithSocial(
-          provider,
-          email: sampleEmail,
-          name: sampleName,
-        );
+    await ref
+        .read(authProvider.notifier)
+        .loginWithSocial(provider, email: sampleEmail, name: sampleName);
   }
 
   @override
@@ -147,7 +162,9 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
 
                   // Headline
                   Text(
-                    _otpSent ? 'Verify Mobile\nNumber' : 'Sign In or\nCreate Account',
+                    _otpSent
+                        ? 'Verify Mobile\nNumber'
+                        : 'Sign In or\nCreate Account',
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w900,
@@ -177,11 +194,17 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                       decoration: BoxDecoration(
                         color: Colors.red.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: Colors.red.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 20,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -213,9 +236,13 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                               onTap: () => setState(() => _activeAuthTab = 0),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: _activeAuthTab == 0 ? AppTheme.pureBlack : Colors.transparent,
+                                  color: _activeAuthTab == 0
+                                      ? AppTheme.pureBlack
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Center(
@@ -224,7 +251,9 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,
-                                      color: _activeAuthTab == 0 ? AppTheme.pureWhite : AppTheme.textSecondary,
+                                      color: _activeAuthTab == 0
+                                          ? AppTheme.pureWhite
+                                          : AppTheme.textSecondary,
                                     ),
                                   ),
                                 ),
@@ -236,9 +265,13 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                               onTap: () => setState(() => _activeAuthTab = 1),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: _activeAuthTab == 1 ? AppTheme.pureBlack : Colors.transparent,
+                                  color: _activeAuthTab == 1
+                                      ? AppTheme.pureBlack
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Center(
@@ -247,7 +280,9 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,
-                                      color: _activeAuthTab == 1 ? AppTheme.pureWhite : AppTheme.textSecondary,
+                                      color: _activeAuthTab == 1
+                                          ? AppTheme.pureWhite
+                                          : AppTheme.textSecondary,
                                     ),
                                   ),
                                 ),
@@ -277,7 +312,10 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 16,
+                            ),
                             decoration: BoxDecoration(
                               color: AppTheme.surfaceLight,
                               borderRadius: BorderRadius.circular(12),
@@ -287,7 +325,10 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                               children: [
                                 Text(
                                   '🇮🇳 +91',
-                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ],
                             ),
@@ -297,24 +338,41 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                             child: TextField(
                               controller: _phoneController,
                               keyboardType: TextInputType.phone,
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 1),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
+                              ),
                               decoration: InputDecoration(
                                 hintText: '98765 43210',
-                                hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 14),
+                                hintStyle: const TextStyle(
+                                  color: AppTheme.textMuted,
+                                  fontSize: 14,
+                                ),
                                 filled: true,
                                 fillColor: AppTheme.surfaceLight,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 16,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: AppTheme.borderLight),
+                                  borderSide: const BorderSide(
+                                    color: AppTheme.borderLight,
+                                  ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: AppTheme.borderLight),
+                                  borderSide: const BorderSide(
+                                    color: AppTheme.borderLight,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: AppTheme.pureBlack, width: 1.5),
+                                  borderSide: const BorderSide(
+                                    color: AppTheme.pureBlack,
+                                    width: 1.5,
+                                  ),
                                 ),
                               ),
                             ),
@@ -346,7 +404,10 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                               )
                             : const Text(
                                 'Get Verification Code',
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                       ),
                     ] else ...[
@@ -374,15 +435,22 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                                 fillColor: AppTheme.surfaceLight,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(color: AppTheme.borderLight),
+                                  borderSide: const BorderSide(
+                                    color: AppTheme.borderLight,
+                                  ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(color: AppTheme.borderLight),
+                                  borderSide: const BorderSide(
+                                    color: AppTheme.borderLight,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(color: AppTheme.pureBlack, width: 2),
+                                  borderSide: const BorderSide(
+                                    color: AppTheme.pureBlack,
+                                    width: 2,
+                                  ),
                                 ),
                               ),
                               onChanged: (value) {
@@ -398,11 +466,11 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                       ),
                       const SizedBox(height: 16),
 
-
-
                       // Verify Button
                       ElevatedButton(
-                        onPressed: authState.isLoading ? null : _handleVerifyOtp,
+                        onPressed: authState.isLoading
+                            ? null
+                            : _handleVerifyOtp,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.pureBlack,
                           foregroundColor: AppTheme.pureWhite,
@@ -423,7 +491,10 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                               )
                             : const Text(
                                 'Verify & Continue',
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                       ),
                       const SizedBox(height: 14),
@@ -456,10 +527,15 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                   if (_activeAuthTab == 1 && !_otpSent) ...[
                     // Google Button
                     OutlinedButton(
-                      onPressed: authState.isLoading ? null : () => _handleSocialLogin('Google'),
+                      onPressed: authState.isLoading
+                          ? null
+                          : () => _handleSocialLogin('Google'),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 52),
-                        side: const BorderSide(color: AppTheme.borderLight, width: 1.2),
+                        side: const BorderSide(
+                          color: AppTheme.borderLight,
+                          width: 1.2,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -502,7 +578,9 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
 
                     // Apple Button
                     ElevatedButton(
-                      onPressed: authState.isLoading ? null : () => _handleSocialLogin('Apple'),
+                      onPressed: authState.isLoading
+                          ? null
+                          : () => _handleSocialLogin('Apple'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.pureBlack,
                         foregroundColor: AppTheme.pureWhite,
@@ -515,7 +593,11 @@ class _LoginSignupScreenState extends ConsumerState<LoginSignupScreen> {
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.apple, size: 22, color: AppTheme.pureWhite),
+                          Icon(
+                            Icons.apple,
+                            size: 22,
+                            color: AppTheme.pureWhite,
+                          ),
                           SizedBox(width: 10),
                           Text(
                             'Continue with Apple',

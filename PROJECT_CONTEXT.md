@@ -41,9 +41,9 @@
 │  Shopper App     │      │  Brand Portal    │      │  Admin Console   │
 │  Route: /        │      │  Route: /brands  │      │  Route: /admin   │
 │                  │      │                  │      │                  │
-│ • Discover D2C   │      │ • Gateway Screen │      │ • Brand Review   │
+│ • Brands (D2C)   │      │ • Gateway Screen │      │ • Brand Review   │
 │ • Nearby Stores  │      │ • Brand Login    │      │ • Drop Review    │
-│ • Generative Drop│      │ • Registration   │      │ • Catalog Mgmt   │
+│ • Vouchers/Profile│     │ • Registration   │      │ • Catalog Mgmt   │
 │ • Voucher Wallet │      │ • Dashboard      │      │ • Analytics      │
 └──────────────────┘      └──────────────────┘      └──────────────────┘
 ```
@@ -53,7 +53,8 @@
 ## 3. The 3 Core Interfaces
 
 ### 3.1 Shopper Mobile App (`/`)
-- **Discover Screen** (`lib/screens/discover_screen.dart`):
+- **Bottom navigation** (`lib/screens/main_shell.dart`), 4 tabs: Brands, Nearby, My Vouchers, Profile. The former Generative tab was removed. Sessions are joined from Brands or Nearby and open the session room (`GenerativeSessionScreen`) as a pushed route. Back navigation is blocked during the countdown.
+- **Brands Screen** (`lib/screens/discover_screen.dart`, tab label "Brands"):
   - Featured banner carousel.
   - Generative Session cards with live countdown timers and participant counters.
   - D2C online brand showcases.
@@ -62,22 +63,25 @@
   - Interactive map/list toggle.
   - Store details: address, area, city, operating hours, phone dialer action, map directions.
   - In-store instant coupon claiming.
-- **Vouchers Screen** (`lib/screens/vouchers_screen.dart`):
+- **Vouchers Screen** (`lib/screens/vouchers_screen.dart`, tab label "My Vouchers"):
   - Digital wallet of claimed vouchers.
   - Tapping a voucher opens the modal (`lib/widgets/barcode_qr_display.dart`) with interactive high-resolution Code-128 barcode and QR code for cashier scanning.
+- **Profile Screen** (`lib/screens/profile_screen.dart`, tab label "Profile"):
+  - Account summary, voucher wallet count, preference list, and Sign Out.
 - **Shopper Auth & Onboarding** (`lib/screens/login_signup_screen.dart`, `lib/screens/profile_onboarding_screen.dart`):
-  - Phone number verification with OTP.
+  - Phone number verification with OTP. Non-production sends return `devOtp` so the code shows on screen.
   - Social authentication (Apple, Google).
+  - New shoppers (OTP or social) start with `approvalStatus: "draft"` and complete their profile. Submitting the profile sets `approvalStatus: "pending"`, and an admin must approve it. A pending shopper sees `ApprovalStatusScreen`, which polls `GET /api/auth/approval-status/:userId` and continues into the app once approved. Rejected shoppers see a rejection message. Login itself is not blocked, so the app decides the screen from `approvalStatus`.
   - Profile preferences & demographics.
 
-### 3.2 Brand Partner Portal (`/brands`, `/brands/login`, `/brands/register`)
+### 3.2 Brand Partner Portal (`/brands`, `/brands/register`)
 - **Brand Gateway (`BrandPortalScreen`)**:
   - Unauthenticated users see a minimalist 2-button gateway:
-    1. **`[ Login ]`**: Opens email & password sign-in form.
+    1. **`[ Login ]`**: Opens email & password sign-in form (`POST /api/brand/login`).
     2. **`[ Register ]`**: Opens multi-step brand onboarding application.
 - **Brand Registration (`BrandRegisterScreen`)**:
   - Supports two types of brands:
-    - `online_d2c`: Online D2C Brand (Discover section).
+    - `online_d2c`: Online D2C Brand (Brands tab).
     - `local_store`: Nearby Physical Store (Nearby section, requires address, area, city, hours).
   - Collects brand name, category, website, Instagram, owner email, password, and coupon rules.
 - **Brand Partner Dashboard** (`lib/screens/brand_portal_screen.dart`):
@@ -87,8 +91,9 @@
   - **Brand Profile**: Update brand assets, hours, and store details.
 
 ### 3.3 Admin Management Panel (`/admin`)
-- **Admin Dashboard** (`lib/screens/web_dashboard_screen.dart` for Desktop Web, `lib/screens/admin_screen.dart` for Mobile):
+- **Admin Console** (`lib/screens/admin_gate.dart` gates sign-in; `lib/screens/admin_screen.dart` is the console). Admins are created manually with `npm run create-admin` in `backend/`. There is no public signup.
   - **Brand Partner Applications**: Approve or Reject brand registration requests with review notes.
+  - **Customer Approvals**: Lists shopper sign-ups submitted for review (name, mobile, email, location, signup date). Approve or reject them. Approved shoppers get into the app on their next status check.
   - **Session Requests**: Approve or Reject proposed brand generative drop sessions.
   - **Active Sessions**: Monitor live drops and participant counts.
   - **Platform Stats**: Total brands, approved partners, claimed vouchers.
@@ -103,18 +108,20 @@ This ensures URLs do **not** have `#` fragments.
 | URL Path | Target Screen | Access Level | Description |
 |---|---|---|---|
 | `/` | `AuthGate` -> `MainShell` | Public / Shopper | Main shopper discovery and coupon app |
-| `/brands` | `BrandPortalScreen` | Public / Brand Partner | 2-button gateway if unauthenticated; Dashboard if logged in |
-| `/brands/login` | `BrandPortalScreen` (mode: login) | Public | Direct link to Brand Login form |
-| `/brands/register`| `BrandRegisterScreen` | Public | Multi-step Brand Registration onboarding |
-| `/admin` | `WebDashboardScreen` | Admin | Internal platform management console |
+| `/brands` | `BrandPortalScreen` | Public / Brand Partner | 2-button gateway (Login / Register); brand dashboard after sign-in |
+| `/brands/register`| `BrandPortalScreen` (initial view: register) | Public | Multi-step Brand Registration onboarding |
+| `/admin` | `AdminGate` -> `AdminScreen` | Admin | Admin sign-in, then the admin console |
+
+Routes are matched exactly. Matching ignores case and a trailing slash. Any other path, such as `/brands/login` or `/admin/users`, falls back to `/`. The logic lives in `resolveWebRoute` in `lib/main.dart` and is covered by `test/routing_test.dart`.
 
 ---
 
 ## 5. State Management & Data Flow
 
-- **Primary Source of Truth**: `AppState` (`lib/state/app_state.dart`).
-- **Reactive Pattern**: `ChangeNotifier` with `ListenableBuilder` wrapped around `MaterialApp` in `lib/main.dart`.
-- **Persistence**: `SharedPreferences` saves brand registrations, session requests, vouchers, and active sessions locally on web and mobile.
+- **Primary Source of Truth**: the Express API (`backend/src/index.ts`), accessed through `ApiService` (`lib/services/api_service.dart`) for categories, brands, sessions, vouchers, and auth.
+- **Local UI state**: `AppState` (`lib/state/app_state.dart`) is a `ChangeNotifier` wrapped in `ListenableBuilder` around `MaterialApp` in `lib/main.dart`.
+- **Riverpod**: `flutter_riverpod` providers (`lib/providers/auth_provider.dart`, `lib/providers/vouchers_provider.dart`) hold auth and voucher state. `sharedPreferencesProvider` is overridden in `main.dart`.
+- **Persistence**: `SharedPreferences` stores the logged-in user (`auth_provider.dart`). Brand, session, and voucher data comes from the API.
 - **Brand Session**:
   - `AppState.loginBrand(email, password)` verifies credentials against approved brand registrations.
   - Sets `_currentBrandRegistrationId`.
@@ -199,8 +206,14 @@ class SessionRequestModel {
 4. Launching Generative Drops
    └── Brand submits "Request Session" in dashboard
    └── Admin approves drop request
-   └── Drop goes live in Shopper "Discover" feed!
+   └── Drop goes live in Shopper "Brands" feed!
 ```
+
+### 7.1 Profile Editing
+
+- **Customer** (`PUT /api/auth/profile`, customer token): name, email, country, state, district. Mobile number is locked. Editable from Profile → Edit profile (`lib/widgets/customer_profile_edit_dialog.dart`). Customers who signed in before the token was added must sign in once more.
+- **Brand** (`PUT /api/brands/:id/profile`, brand owner or admin): updates the portal registration and the live brand listing together. Editable from the brand portal's Profile section and from the admin Brands tab (`lib/widgets/brand_profile_edit_dialog.dart`). The contact email is also the brand login email. Tagline is not editable here because it exists only on the live brand.
+- **Admin** (`GET /api/customers`, `PUT /api/customers/:id`, admin token): the "All customers" list on the Customers tab (`lib/widgets/admin_customers_panel.dart`).
 
 ---
 
@@ -208,7 +221,7 @@ class SessionRequestModel {
 
 - **Tokens & Definitions**: `lib/theme/app_theme.dart`
 - **Aesthetic**: Luxury, sleek, high-contrast monochrome (pure black `#000000`, crisp white `#FFFFFF`, zinc gray accents `#F3F4F6`, `#E5E7EB`).
-- **Typography**: Apple/Inter styling with negative letter spacing (`-0.5px`) for modern headlines.
+- **Typography**: Apple/Inter styling with negative letter spacing (`-0.5px`) for modern headlines. Flutter uses the platform default font. Inter is not bundled yet.
 - **Elevations & Borders**: 1px subtle borders (`#E5E7EB`) with soft drop shadows (`blurRadius: 20`, `color: black.withValues(alpha: 0.04)`).
 - **Responsive Layout**:
   - `isWide = MediaQuery.of(context).size.width > 860;`
@@ -228,6 +241,6 @@ class SessionRequestModel {
 3. **URL PATH PRESERVATION**:
    - Always preserve `usePathUrlStrategy()` so direct links (`/brands`, `/admin`) function without `#`.
 4. **STATIC ASSET ROUTING ON WEB**:
-   - When updating the web build, ensure `/admin/index.html`, `/brands/index.html`, `/brands/login/index.html`, and `/brands/register/index.html` are synced with `build/web/index.html` for single-page app direct refreshes.
+   - `web/` has a single `index.html`. The web host must rewrite unknown paths (`/admin`, `/brands`, `/brands/register`) to `index.html` so direct refreshes work.
 5. **ZERO LINT ERRORS**:
    - Ensure `flutter analyze` passes with 0 errors and 0 warnings before concluding any task.

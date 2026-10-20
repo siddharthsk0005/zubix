@@ -4,6 +4,7 @@ import '../models/brand_registration_model.dart';
 import '../models/session_request_model.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/brand_profile_edit_dialog.dart';
 import 'brand_register_screen.dart';
 
 /// /brands — Brand Portal
@@ -79,8 +80,6 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
   }
 
   Widget _buildTopBar() {
-    final allBrands = widget.state.brandRegistrations;
-
     return Container(
       height: 60,
       color: Colors.white,
@@ -92,17 +91,32 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
             child: Row(
               children: [
                 Container(
-                  width: 28, height: 28,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     color: AppTheme.pureBlack,
                     borderRadius: BorderRadius.circular(7),
                   ),
-                  child: const Center(child: Text('Z', style: TextStyle(
-                    fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white))),
+                  child: const Center(
+                    child: Text(
+                      'Z',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                const Text('zubix', style: TextStyle(
-                  fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: -0.5)),
+                const Text(
+                  'zubix',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    letterSpacing: -0.5,
+                  ),
+                ),
               ],
             ),
           ),
@@ -113,90 +127,49 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
               color: AppTheme.surfaceMuted,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: const Text('Brand Portal',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                color: AppTheme.textSecondary)),
+            child: const Text(
+              'Brand Portal',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+              ),
+            ),
           ),
           const SizedBox(width: 16),
 
-          // Brand Switcher Dropdown (Allows switching to newly registered brand instantly!)
-          if (allBrands.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceLight,
-                border: Border.all(color: AppTheme.borderLight),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _brand?.id,
-                  hint: const Text('Select Brand', style: TextStyle(fontSize: 12)),
-                  icon: const Icon(Icons.arrow_drop_down, size: 18, color: AppTheme.pureBlack),
-                  items: allBrands.map((b) {
-                    final isAppr = b.status == 'approved';
-                    return DropdownMenuItem<String>(
-                      value: b.id,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(b.brandName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: isAppr ? Colors.green.shade50 : (b.status == 'rejected' ? Colors.red.shade50 : Colors.amber.shade50),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              b.status.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                color: isAppr ? Colors.green.shade800 : (b.status == 'rejected' ? Colors.red.shade800 : Colors.amber.shade900),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (newId) {
-                    if (newId != null) {
-                      setState(() {
-                        widget.state.currentBrandRegistrationId = newId;
-                      });
-                    }
-                  },
-                ),
-              ),
-            ),
-          ],
-
           const Spacer(),
           TextButton.icon(
-            onPressed: () => Navigator.of(context).pushReplacementNamed('/brands/register'),
+            onPressed: () =>
+                Navigator.of(context).pushReplacementNamed('/brands/register'),
             icon: const Icon(Icons.add, size: 15),
-            label: const Text('Register Another Brand', style: TextStyle(fontSize: 12)),
+            label: const Text(
+              'Register Another Brand',
+              style: TextStyle(fontSize: 12),
+            ),
           ),
           const SizedBox(width: 8),
           TextButton.icon(
             onPressed: () {
-              widget.state.currentBrandRegistrationId = null;
+              widget.state.signOutBrand();
               setState(() {
                 _portalLoginError = null;
                 _authView = 'gateway';
               });
             },
-            icon: const Icon(Icons.logout_rounded, size: 15, color: Color(0xFFDC2626)),
-            label: const Text('Sign Out',
-              style: TextStyle(fontSize: 12.5, color: Color(0xFFDC2626), fontWeight: FontWeight.w600)),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: () => Navigator.of(context).pushReplacementNamed('/admin'),
-            child: const Text('Admin Panel →',
-              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+            icon: const Icon(
+              Icons.logout_rounded,
+              size: 15,
+              color: Color(0xFFDC2626),
+            ),
+            label: const Text(
+              'Sign Out',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: Color(0xFFDC2626),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -219,7 +192,8 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 40, height: 40,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: AppTheme.pureBlack,
                       borderRadius: BorderRadius.circular(12),
@@ -228,13 +202,22 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                       child: Text(
                         _brand!.brandName.substring(0, 1).toUpperCase(),
                         style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18)),
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(_brand!.brandName,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                    overflow: TextOverflow.ellipsis),
+                  Text(
+                    _brand!.brandName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 2),
                   _buildStatusBadge(_brand!.status),
                 ],
@@ -244,15 +227,23 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
           const SizedBox(height: 8),
           _buildNavItem('overview', Icons.grid_view_rounded, 'Overview'),
           _buildNavItem('sessions', Icons.flash_on_rounded, 'My Sessions'),
-          _buildNavItem('request', Icons.add_circle_outline_rounded, 'Request Session'),
-          _buildNavItem('profile', Icons.person_outline_rounded, 'Brand Profile'),
+          _buildNavItem(
+            'request',
+            Icons.add_circle_outline_rounded,
+            'Request Session',
+          ),
+          _buildNavItem(
+            'profile',
+            Icons.person_outline_rounded,
+            'Brand Profile',
+          ),
           const Spacer(),
           const Divider(),
-            Padding(
+          Padding(
             padding: const EdgeInsets.all(16),
             child: OutlinedButton.icon(
               onPressed: () {
-                widget.state.currentBrandRegistrationId = null;
+                widget.state.signOutBrand();
                 setState(() {
                   _portalLoginError = null;
                   _authView = 'gateway';
@@ -263,8 +254,13 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.textSecondary,
                 side: const BorderSide(color: AppTheme.borderLight),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
             ),
           ),
@@ -287,14 +283,20 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18,
-              color: selected ? Colors.white : AppTheme.textSecondary),
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? Colors.white : AppTheme.textSecondary,
+            ),
             const SizedBox(width: 10),
-            Text(label, style: TextStyle(
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              fontSize: 14,
-              color: selected ? Colors.white : AppTheme.textPrimary,
-            )),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 14,
+                color: selected ? Colors.white : AppTheme.textPrimary,
+              ),
+            ),
           ],
         ),
       ),
@@ -323,12 +325,22 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(item.$2, size: 22,
-                    color: active ? AppTheme.pureBlack : AppTheme.textTertiary),
+                  Icon(
+                    item.$2,
+                    size: 22,
+                    color: active ? AppTheme.pureBlack : AppTheme.textTertiary,
+                  ),
                   const SizedBox(height: 3),
-                  Text(item.$3, style: TextStyle(
-                    fontSize: 10, fontWeight: FontWeight.w600,
-                    color: active ? AppTheme.pureBlack : AppTheme.textTertiary)),
+                  Text(
+                    item.$3,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: active
+                          ? AppTheme.pureBlack
+                          : AppTheme.textTertiary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -346,9 +358,10 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
         child: switch (_section) {
           'overview' => _buildOverview(),
           'sessions' => _buildSessionsList(),
-          'request' => _hasApprovedBrand
-              ? _buildRequestSession()
-              : _buildNotApprovedGate(),
+          'request' =>
+            _hasApprovedBrand
+                ? _buildRequestSession()
+                : _buildNotApprovedGate(),
           'profile' => _buildProfileSection(),
           _ => _buildOverview(),
         },
@@ -411,13 +424,25 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Center(
-                child: Text('Z',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Colors.white)),
+                child: Text(
+                  'Z',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 20,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),
-            const Text('zubix',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
+            const Text(
+              'zubix',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 24,
+                letterSpacing: -0.5,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -427,19 +452,35 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
             color: const Color(0xFFF3F4F6),
             borderRadius: BorderRadius.circular(6),
           ),
-          child: const Text('BRAND PARTNER PORTAL',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: AppTheme.textSecondary)),
+          child: const Text(
+            'BRAND PARTNER PORTAL',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: AppTheme.textSecondary,
+            ),
+          ),
         ),
         const SizedBox(height: 24),
         const Text(
           'Brand Gateway',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: AppTheme.pureBlack),
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            color: AppTheme.pureBlack,
+          ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         const Text(
           'Select an option to access your dashboard or join as a brand partner.',
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, height: 1.4),
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 14,
+            height: 1.4,
+          ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 32),
@@ -456,13 +497,17 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
               });
             },
             icon: const Icon(Icons.login_rounded, size: 20),
-            label: const Text('Login',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            label: const Text(
+              'Login',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.pureBlack,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
@@ -479,13 +524,17 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
               });
             },
             icon: const Icon(Icons.app_registration_rounded, size: 20),
-            label: const Text('Register',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            label: const Text(
+              'Register',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppTheme.pureBlack,
               backgroundColor: Colors.white,
               side: const BorderSide(color: AppTheme.pureBlack, width: 1.5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
@@ -495,9 +544,19 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
 
         TextButton.icon(
           onPressed: () => Navigator.of(context).pushReplacementNamed('/'),
-          icon: const Icon(Icons.storefront_outlined, size: 16, color: AppTheme.textSecondary),
-          label: const Text('Return to User App',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+          icon: const Icon(
+            Icons.storefront_outlined,
+            size: 16,
+            color: AppTheme.textSecondary,
+          ),
+          label: const Text(
+            'Return to User App',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ],
     );
@@ -518,10 +577,20 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.arrow_back_rounded, size: 18, color: AppTheme.textSecondary),
+                    Icon(
+                      Icons.arrow_back_rounded,
+                      size: 18,
+                      color: AppTheme.textSecondary,
+                    ),
                     SizedBox(width: 4),
-                    Text('Back',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+                    Text(
+                      'Back',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -533,20 +602,34 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                 color: const Color(0xFFF3F4F6),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Text('Brand Login',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+              child: const Text(
+                'Brand Login',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 20),
         const Text(
           'Brand Partner Login',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
         ),
         const SizedBox(height: 6),
         const Text(
           'Enter your registered email and password to access your dashboard.',
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13.5, height: 1.4),
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 13.5,
+            height: 1.4,
+          ),
         ),
         const SizedBox(height: 24),
 
@@ -560,12 +643,20 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 20),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: Color(0xFFDC2626),
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     _portalLoginError!,
-                    style: const TextStyle(color: Color(0xFF991B1B), fontSize: 12.5, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      color: Color(0xFF991B1B),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -574,8 +665,14 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
           const SizedBox(height: 18),
         ],
 
-        const Text('Registered Work Email',
-          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+        const Text(
+          'Registered Work Email',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textSecondary,
+          ),
+        ),
         const SizedBox(height: 6),
         TextField(
           controller: _portalEmailCtrl,
@@ -583,10 +680,16 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
           style: const TextStyle(fontSize: 14),
           decoration: InputDecoration(
             hintText: 'partner@yourbrand.com',
-            hintStyle: const TextStyle(color: AppTheme.textTertiary, fontSize: 14),
+            hintStyle: const TextStyle(
+              color: AppTheme.textTertiary,
+              fontSize: 14,
+            ),
             filled: true,
             fillColor: AppTheme.surfaceLight,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppTheme.borderLight),
@@ -597,14 +700,23 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppTheme.pureBlack, width: 1.5),
+              borderSide: const BorderSide(
+                color: AppTheme.pureBlack,
+                width: 1.5,
+              ),
             ),
           ),
         ),
         const SizedBox(height: 16),
 
-        const Text('Password',
-          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+        const Text(
+          'Password',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textSecondary,
+          ),
+        ),
         const SizedBox(height: 6),
         TextField(
           controller: _portalPassCtrl,
@@ -612,10 +724,16 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
           style: const TextStyle(fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Enter your password',
-            hintStyle: const TextStyle(color: AppTheme.textTertiary, fontSize: 14),
+            hintStyle: const TextStyle(
+              color: AppTheme.textTertiary,
+              fontSize: 14,
+            ),
             filled: true,
             fillColor: AppTheme.surfaceLight,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppTheme.borderLight),
@@ -626,15 +744,21 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppTheme.pureBlack, width: 1.5),
+              borderSide: const BorderSide(
+                color: AppTheme.pureBlack,
+                width: 1.5,
+              ),
             ),
             suffixIcon: IconButton(
               icon: Icon(
-                _obscurePortalPass ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                _obscurePortalPass
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
                 size: 18,
                 color: AppTheme.textSecondary,
               ),
-              onPressed: () => setState(() => _obscurePortalPass = !_obscurePortalPass),
+              onPressed: () =>
+                  setState(() => _obscurePortalPass = !_obscurePortalPass),
             ),
           ),
         ),
@@ -649,97 +773,48 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
               backgroundColor: AppTheme.pureBlack,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Text('Sign In to Dashboard →',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+            child: const Text(
+              'Sign In to Dashboard →',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
           ),
         ),
         const SizedBox(height: 16),
         Center(
           child: TextButton(
             onPressed: () => setState(() => _authView = 'register'),
-            child: const Text('Don\'t have an account? Apply to Register →',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.pureBlack)),
-          ),
-        ),
-
-        if (widget.state.brandRegistrations.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          const Divider(),
-          const SizedBox(height: 10),
-          const Text('Registered Brands (Tap to sign in):',
-            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppTheme.textSecondary)),
-          const SizedBox(height: 8),
-          ...widget.state.brandRegistrations.map((b) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: InkWell(
-              onTap: () {
-                _portalEmailCtrl.text = b.ownerEmail;
-                _portalPassCtrl.text = b.password;
-                _handlePortalLogin();
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceLight,
-                  border: Border.all(color: AppTheme.borderLight),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.business_rounded, size: 15, color: AppTheme.pureBlack),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${b.brandName} (${b.ownerEmail})',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: b.status == 'approved' ? Colors.green.shade50 : Colors.amber.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(b.status.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          color: b.status == 'approved' ? Colors.green.shade800 : Colors.amber.shade900,
-                        )),
-                    ),
-                  ],
-                ),
+            child: const Text(
+              'Don\'t have an account? Apply to Register →',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.pureBlack,
               ),
             ),
-          )),
-        ],
+          ),
+        ),
       ],
     );
   }
 
-  void _handlePortalLogin() {
+  Future<void> _handlePortalLogin() async {
     final email = _portalEmailCtrl.text.trim();
     final pass = _portalPassCtrl.text.trim();
 
     if (email.isEmpty || pass.isEmpty) {
-      setState(() => _portalLoginError = 'Please enter both email and password.');
+      setState(
+        () => _portalLoginError = 'Please enter both email and password.',
+      );
       return;
     }
 
-    final success = widget.state.loginBrand(email, pass);
-    if (success) {
-      setState(() {
-        _portalLoginError = null;
-      });
-    } else {
-      setState(() {
-        _portalLoginError = 'Invalid email or password. Verify your credentials or submit a brand registration.';
-      });
-    }
+    final error = await widget.state.loginBrand(email, pass);
+    if (!mounted) return;
+    setState(() => _portalLoginError = error);
   }
 
   // ─── OVERVIEW ─────────────────────────────────────────────────────────────
@@ -754,18 +829,24 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Overview', style: TextStyle(
-            fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+          const Text(
+            'Overview',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
           const SizedBox(height: 4),
           Text(
             _brand != null
                 ? 'Welcome back, ${_brand!.ownerName.split(' ').first}!'
                 : 'Register or log in to access your brand dashboard.',
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+          ),
           const SizedBox(height: 28),
           // Status card
-          if (_brand != null)
-            _buildStatusCard(),
+          if (_brand != null) _buildStatusCard(),
           const SizedBox(height: 20),
           // Quick stats
           if (_hasApprovedBrand) ...[
@@ -777,8 +858,10 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
           const SizedBox(height: 24),
           // Recent session requests
           if (sessionRequests.isNotEmpty) ...[
-            const Text('Recent Session Requests', style: TextStyle(
-              fontWeight: FontWeight.w700, fontSize: 16)),
+            const Text(
+              'Recent Session Requests',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
             const SizedBox(height: 12),
             ...sessionRequests.take(3).map((s) => _buildSessionRequestCard(s)),
           ],
@@ -794,12 +877,24 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
   Widget _buildStatusCard() {
     final status = _brand!.status;
     final (color, bg, icon, msg) = switch (status) {
-      'approved' => (const Color(0xFF16A34A), const Color(0xFFF0FDF4),
-          Icons.verified_rounded, 'Your brand is approved and active on Zubix.'),
-      'rejected' => (const Color(0xFFDC2626), const Color(0xFFFEF2F2),
-          Icons.cancel_rounded, 'Application rejected: ${_brand!.rejectionReason ?? "See admin notes"}'),
-      _ => (const Color(0xFFD97706), const Color(0xFFFFFBEB),
-          Icons.hourglass_top_rounded, 'Your application is under review (1–2 business days).'),
+      'approved' => (
+        const Color(0xFF16A34A),
+        const Color(0xFFF0FDF4),
+        Icons.verified_rounded,
+        'Your brand is approved and active on Zubix.',
+      ),
+      'rejected' => (
+        const Color(0xFFDC2626),
+        const Color(0xFFFEF2F2),
+        Icons.cancel_rounded,
+        'Application rejected: ${_brand!.rejectionReason ?? "See admin notes"}',
+      ),
+      _ => (
+        const Color(0xFFD97706),
+        const Color(0xFFFFFBEB),
+        Icons.hourglass_top_rounded,
+        'Your application is under review (1–2 business days).',
+      ),
     };
     return Container(
       padding: const EdgeInsets.all(16),
@@ -812,21 +907,42 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
         children: [
           Icon(icon, color: color, size: 22),
           const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                status == 'approved' ? 'Account Active' :
-                status == 'rejected' ? 'Application Rejected' : 'Under Review',
-                style: TextStyle(fontWeight: FontWeight.w700, color: color, fontSize: 14)),
-              const SizedBox(height: 2),
-              Text(msg, style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 13)),
-            ],
-          )),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  status == 'approved'
+                      ? 'Account Active'
+                      : status == 'rejected'
+                      ? 'Application Rejected'
+                      : 'Under Review',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  msg,
+                  style: TextStyle(
+                    color: color.withValues(alpha: 0.8),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
           if (status == 'rejected')
             TextButton(
-              onPressed: () => Navigator.of(context).pushReplacementNamed('/brands/register'),
-              child: const Text('Reapply →', style: TextStyle(fontWeight: FontWeight.w700)),
+              onPressed: () => Navigator.of(
+                context,
+              ).pushReplacementNamed('/brands/register'),
+              child: const Text(
+                'Reapply →',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
         ],
       ),
@@ -834,22 +950,44 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
   }
 
   Widget _buildStatsRow(List<SessionRequestModel> requests) {
-    final pending = requests.where((r) => r.status == 'pending_approval').length;
+    final pending = requests
+        .where((r) => r.status == 'pending_approval')
+        .length;
     final approved = requests.where((r) => r.status == 'approved').length;
     final live = requests.where((r) => r.status == 'brand_confirmed').length;
 
     return Row(
       children: [
-        _buildStatCard('Total Requests', '${requests.length}', Icons.send_rounded, AppTheme.pureBlack),
+        _buildStatCard(
+          'Total Requests',
+          '${requests.length}',
+          Icons.send_rounded,
+          AppTheme.pureBlack,
+        ),
         const SizedBox(width: 12),
-        _buildStatCard('Pending', '$pending', Icons.schedule_rounded, const Color(0xFFD97706)),
+        _buildStatCard(
+          'Pending',
+          '$pending',
+          Icons.schedule_rounded,
+          const Color(0xFFD97706),
+        ),
         const SizedBox(width: 12),
-        _buildStatCard('Live / Approved', '${approved + live}', Icons.flash_on_rounded, const Color(0xFF16A34A)),
+        _buildStatCard(
+          'Live / Approved',
+          '${approved + live}',
+          Icons.flash_on_rounded,
+          const Color(0xFF16A34A),
+        ),
       ],
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -863,11 +1001,24 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
           children: [
             Icon(icon, color: color, size: 20),
             const SizedBox(height: 10),
-            Text(value, style: TextStyle(
-              fontSize: 26, fontWeight: FontWeight.w800, color: color, letterSpacing: -1)),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: color,
+                letterSpacing: -1,
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(label, style: const TextStyle(
-              color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),
@@ -879,9 +1030,18 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
       spacing: 12,
       runSpacing: 12,
       children: [
-        _buildActionChip('➕ Request a Session', () => setState(() => _section = 'request')),
-        _buildActionChip('📋 View My Sessions', () => setState(() => _section = 'sessions')),
-        _buildActionChip('✏️ Edit Profile', () => setState(() => _section = 'profile')),
+        _buildActionChip(
+          '➕ Request a Session',
+          () => setState(() => _section = 'request'),
+        ),
+        _buildActionChip(
+          '📋 View My Sessions',
+          () => setState(() => _section = 'sessions'),
+        ),
+        _buildActionChip(
+          '✏️ Edit Profile',
+          () => setState(() => _section = 'profile'),
+        ),
       ],
     );
   }
@@ -896,8 +1056,10 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
           border: Border.all(color: AppTheme.borderLight),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Text(label, style: const TextStyle(
-          fontWeight: FontWeight.w600, fontSize: 13)),
+        child: Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
       ),
     );
   }
@@ -912,21 +1074,40 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Join the Zubix Brand Network', style: TextStyle(
-            color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: -0.5)),
+          const Text(
+            'Join the Zubix Brand Network',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              letterSpacing: -0.5,
+            ),
+          ),
           const SizedBox(height: 8),
-          const Text('Register your brand to run generative sessions and connect with thousands of eager shoppers.',
-            style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 14, height: 1.5)),
+          const Text(
+            'Register your brand to run generative sessions and connect with thousands of eager shoppers.',
+            style: TextStyle(
+              color: Color(0xFFAAAAAA),
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: () => Navigator.of(context).pushReplacementNamed('/brands/register'),
+            onPressed: () =>
+                Navigator.of(context).pushReplacementNamed('/brands/register'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppTheme.pureBlack,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Text('Register Your Brand →', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text(
+              'Register Your Brand →',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -947,18 +1128,34 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
         children: [
           Row(
             children: [
-              const Expanded(child: Text('My Sessions', style: TextStyle(
-                fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5))),
+              const Expanded(
+                child: Text(
+                  'My Sessions',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
               if (_hasApprovedBrand)
                 ElevatedButton.icon(
                   onPressed: () => setState(() => _section = 'request'),
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('New Request', style: TextStyle(fontWeight: FontWeight.w700)),
+                  label: const Text(
+                    'New Request',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.pureBlack,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                   ),
                 ),
             ],
@@ -971,26 +1168,53 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
               _hasApprovedBrand
                   ? 'Submit your first session request to get started.'
                   : 'Your brand must be approved before requesting sessions.',
-              _hasApprovedBrand ? () => setState(() => _section = 'request') : null,
+              _hasApprovedBrand
+                  ? () => setState(() => _section = 'request')
+                  : null,
               _hasApprovedBrand ? 'Request a Session' : null,
             )
           else
-            ...requests.map((r) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildSessionRequestCard(r, showActions: true),
-            )),
+            ...requests.map(
+              (r) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildSessionRequestCard(r, showActions: true),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildSessionRequestCard(SessionRequestModel req, {bool showActions = false}) {
+  Widget _buildSessionRequestCard(
+    SessionRequestModel req, {
+    bool showActions = false,
+  }) {
     final (statusColor, statusBg, statusLabel) = switch (req.status) {
-      'pending_approval' => (const Color(0xFFD97706), const Color(0xFFFFFBEB), '⏳ Pending Review'),
-      'approved' => (const Color(0xFF16A34A), const Color(0xFFF0FDF4), '✅ Approved'),
-      'rejected' => (const Color(0xFFDC2626), const Color(0xFFFEF2F2), '❌ Rejected'),
-      'dates_proposed' => (const Color(0xFF7C3AED), const Color(0xFFF5F3FF), '📅 Dates Proposed'),
-      'brand_confirmed' => (const Color(0xFF0284C7), const Color(0xFFF0F9FF), '🔵 Confirmed'),
+      'pending_approval' => (
+        const Color(0xFFD97706),
+        const Color(0xFFFFFBEB),
+        '⏳ Pending Review',
+      ),
+      'approved' => (
+        const Color(0xFF16A34A),
+        const Color(0xFFF0FDF4),
+        '✅ Approved',
+      ),
+      'rejected' => (
+        const Color(0xFFDC2626),
+        const Color(0xFFFEF2F2),
+        '❌ Rejected',
+      ),
+      'dates_proposed' => (
+        const Color(0xFF7C3AED),
+        const Color(0xFFF5F3FF),
+        '📅 Dates Proposed',
+      ),
+      'brand_confirmed' => (
+        const Color(0xFF0284C7),
+        const Color(0xFFF0F9FF),
+        '🔵 Confirmed',
+      ),
       _ => (AppTheme.textSecondary, AppTheme.surfaceMuted, req.status),
     };
 
@@ -1009,32 +1233,59 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
               Expanded(
                 child: Text(
                   '${req.brandName} — Session Request',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusBg,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(statusLabel, style: TextStyle(
-                  color: statusColor, fontWeight: FontWeight.w700, fontSize: 12)),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
+          Text(
+            'Created by: ${req.createdBy ?? '—'}',
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
-              _buildInfoChip(Icons.calendar_today_rounded,
-                _formatDate(req.effectiveDate)),
+              _buildInfoChip(
+                Icons.calendar_today_rounded,
+                _formatDate(req.effectiveDate),
+              ),
               const SizedBox(width: 10),
-              _buildInfoChip(Icons.people_outline_rounded,
-                '${req.totalSlots} total slots'),
+              _buildInfoChip(
+                Icons.people_outline_rounded,
+                '${req.totalSlots} total slots',
+              ),
               const SizedBox(width: 10),
-              _buildInfoChip(Icons.local_offer_outlined,
-                '${req.couponTiers.length} tier${req.couponTiers.length > 1 ? "s" : ""}'),
+              _buildInfoChip(
+                Icons.local_offer_outlined,
+                '${req.couponTiers.length} tier${req.couponTiers.length > 1 ? "s" : ""}',
+              ),
             ],
           ),
           // Coupon tiers
@@ -1042,44 +1293,88 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
           Wrap(
             spacing: 8,
             runSpacing: 6,
-            children: req.couponTiers.map((t) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceMuted,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text('${t.slots} × ${t.discountPct}% OFF',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            )).toList(),
+            children: req.couponTiers
+                .map(
+                  (t) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceMuted,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${t.slots} × ${t.discountPct}% OFF',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
           // Proposed dates (if admin counter-proposed)
-          if (req.status == 'dates_proposed' && req.proposedDates.isNotEmpty && showActions) ...[
+          if (req.status == 'dates_proposed' &&
+              req.proposedDates.isNotEmpty &&
+              showActions) ...[
             const SizedBox(height: 14),
-            const Text('Admin proposed these alternate dates — pick one:',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF7C3AED))),
+            const Text(
+              'Admin proposed these alternate dates — pick one:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: Color(0xFF7C3AED),
+              ),
+            ),
             const SizedBox(height: 8),
             Wrap(
-              spacing: 8, runSpacing: 6,
-              children: req.proposedDates.map((d) => GestureDetector(
-                onTap: () {
-                  widget.state.brandConfirmSessionDate(req.id, d);
-                  _showSnack('Date confirmed: ${_formatDate(d)}');
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF7C3AED),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(_formatDate(d), style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-                ),
-              )).toList(),
+              spacing: 8,
+              runSpacing: 6,
+              children: req.proposedDates
+                  .map(
+                    (d) => GestureDetector(
+                      onTap: () async {
+                        final ok = await widget.state.brandConfirmSessionDate(
+                          req.id,
+                          d,
+                        );
+                        if (!mounted) return;
+                        _showSnack(
+                          ok
+                              ? 'Date confirmed: ${_formatDate(d)}'
+                              : 'Could not confirm date. Please try again.',
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF7C3AED),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _formatDate(d),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ],
           const SizedBox(height: 10),
-          Text('Submitted ${_timeAgo(req.submittedAt)}',
-            style: const TextStyle(color: AppTheme.textTertiary, fontSize: 12)),
+          Text(
+            'Submitted ${_timeAgo(req.submittedAt)}',
+            style: const TextStyle(color: AppTheme.textTertiary, fontSize: 12),
+          ),
         ],
       ),
     );
@@ -1091,7 +1386,10 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
       children: [
         Icon(icon, size: 13, color: AppTheme.textSecondary),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+        ),
       ],
     );
   }
@@ -1109,18 +1407,20 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
             ? 'Application Under Review'
             : (isRejected ? 'Application Rejected' : 'Brand not yet approved'),
         isPending
-            ? '${_brand?.brandName ?? "Your brand"} is currently under review by the Zubix Admin team. You can approve it in the Admin Panel to unlock session creation.'
+            ? '${_brand?.brandName ?? "Your brand"} is currently under review by the Zubix team. You will be able to request sessions once it is approved.'
             : (isRejected
-                ? 'Your registration was rejected: ${_brand?.rejectionReason ?? "Documentation incomplete"}. You can reapply with updated details.'
-                : 'Your brand registration must be approved by admin before you can request sessions.'),
+                  ? 'Your registration was rejected: ${_brand?.rejectionReason ?? "Documentation incomplete"}. You can reapply with updated details.'
+                  : 'Your brand registration must be approved by admin before you can request sessions.'),
         isPending
-            ? () => Navigator.of(context).pushReplacementNamed('/admin')
+            ? null
             : (isRejected
-                ? () => Navigator.of(context).pushReplacementNamed('/brands/register')
-                : () => Navigator.of(context).pushReplacementNamed('/brands/register')),
-        isPending
-            ? 'Open Admin Panel to Review →'
-            : (isRejected ? 'Reapply Now' : 'Register Brand'),
+                  ? () => Navigator.of(
+                      context,
+                    ).pushReplacementNamed('/brands/register')
+                  : () => Navigator.of(
+                      context,
+                    ).pushReplacementNamed('/brands/register')),
+        isPending ? null : (isRejected ? 'Reapply Now' : 'Register Brand'),
       ),
     );
   }
@@ -1140,17 +1440,29 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
 
   Widget _buildProfileSection() {
     if (_brand == null) {
-      return Center(child: _buildEmptyState(
-        '👤', 'No profile found', 'Register your brand first.',
-        () => Navigator.of(context).pushReplacementNamed('/brands/register'), 'Register Now'));
+      return Center(
+        child: _buildEmptyState(
+          '👤',
+          'No profile found',
+          'Register your brand first.',
+          () => Navigator.of(context).pushReplacementNamed('/brands/register'),
+          'Register Now',
+        ),
+      );
     }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Brand Profile', style: TextStyle(
-            fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+          const Text(
+            'Brand Profile',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
           const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(24),
@@ -1165,21 +1477,34 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                 Row(
                   children: [
                     Container(
-                      width: 56, height: 56,
+                      width: 56,
+                      height: 56,
                       decoration: BoxDecoration(
                         color: AppTheme.pureBlack,
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Center(child: Text(
-                        _brand!.brandName.substring(0, 1).toUpperCase(),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 24))),
+                      child: Center(
+                        child: Text(
+                          _brand!.brandName.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 24,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_brand!.brandName, style: const TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 18)),
+                        Text(
+                          _brand!.brandName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         _buildStatusBadge(_brand!.status),
                       ],
@@ -1188,32 +1513,66 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                 ),
                 const SizedBox(height: 24),
                 const Divider(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: _editBrandProfile,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Edit profile'),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 ...[
                   ('Owner', _brand!.ownerName),
                   ('Email', _brand!.ownerEmail),
                   ('Phone', '+91 ${_brand!.ownerPhone}'),
-                  ('Brand Type', _brand!.brandType == 'online_d2c' ? 'D2C / Online Brand' : 'Local Physical Store'),
-                  if (_brand!.websiteUrl != null) ('Website', _brand!.websiteUrl!),
-                  if (_brand!.instagramUrl != null) ('Instagram', _brand!.instagramUrl!),
-                  if (_brand!.description != null) ('About', _brand!.description!),
+                  (
+                    'Brand Type',
+                    _brand!.brandType == 'online_d2c'
+                        ? 'D2C / Online Brand'
+                        : 'Local Physical Store',
+                  ),
+                  if (_brand!.websiteUrl != null)
+                    ('Website', _brand!.websiteUrl!),
+                  if (_brand!.instagramUrl != null)
+                    ('Instagram', _brand!.instagramUrl!),
+                  if (_brand!.description != null)
+                    ('About', _brand!.description!),
                   if (_brand!.city != null) ('City', _brand!.city!),
                   if (_brand!.area != null) ('Area', _brand!.area!),
                   if (_brand!.address != null) ('Address', _brand!.address!),
-                  if (_brand!.operatingHours != null) ('Hours', _brand!.operatingHours!),
-                ].map((row) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(width: 100,
-                        child: Text(row.$1, style: const TextStyle(
-                          color: AppTheme.textSecondary, fontSize: 13))),
-                      Expanded(child: Text(row.$2, style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13))),
-                    ],
+                  if (_brand!.operatingHours != null)
+                    ('Hours', _brand!.operatingHours!),
+                ].map(
+                  (row) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: Text(
+                            row.$1,
+                            style: const TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            row.$2,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
               ],
             ),
           ),
@@ -1226,15 +1585,32 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
 
   Widget _buildStatusBadge(String status) {
     final (color, bg, label) = switch (status) {
-      'approved' => (const Color(0xFF16A34A), const Color(0xFFDCFCE7), 'Approved'),
-      'rejected' => (const Color(0xFFDC2626), const Color(0xFFFEE2E2), 'Rejected'),
+      'approved' => (
+        const Color(0xFF16A34A),
+        const Color(0xFFDCFCE7),
+        'Approved',
+      ),
+      'rejected' => (
+        const Color(0xFFDC2626),
+        const Color(0xFFFEE2E2),
+        'Rejected',
+      ),
       _ => (const Color(0xFFD97706), const Color(0xFFFEF3C7), 'Pending'),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(label, style: TextStyle(
-        color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 
@@ -1253,11 +1629,20 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
           children: [
             Text(emoji, style: const TextStyle(fontSize: 48)),
             const SizedBox(height: 16),
-            Text(title, style: const TextStyle(
-              fontWeight: FontWeight.w700, fontSize: 18)),
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+            ),
             const SizedBox(height: 8),
-            Text(subtitle, textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14, height: 1.5)),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
             if (onAction != null && actionLabel != null) ...[
               const SizedBox(height: 20),
               ElevatedButton(
@@ -1265,10 +1650,18 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.pureBlack,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
-                child: Text(actionLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
+                child: Text(
+                  actionLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ],
@@ -1281,8 +1674,19 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
       '${_monthName(d.month)} ${d.day}, ${d.year}';
 
   String _monthName(int m) => const [
-    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    '',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ][m];
 
   String _timeAgo(DateTime dt) {
@@ -1293,9 +1697,19 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
     return 'just now';
   }
 
+  Future<void> _editBrandProfile() async {
+    final brand = _brand;
+    if (brand == null) return;
+    final saved = await showBrandProfileEditDialog(context, brand);
+    if (saved == null || !mounted) return;
+    widget.state.replaceBrandRegistration(saved);
+    _showSnack('Brand profile updated.');
+  }
+
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: AppTheme.pureBlack));
+      SnackBar(content: Text(msg), backgroundColor: AppTheme.pureBlack),
+    );
   }
 }
 
@@ -1324,11 +1738,13 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
     CouponTier(slots: 1000, discountPct: 20),
   ];
   final _notesCtrl = TextEditingController();
+  final _createdByCtrl = TextEditingController();
   bool _isSubmitting = false;
 
   @override
   void dispose() {
     _notesCtrl.dispose();
+    _createdByCtrl.dispose();
     super.dispose();
   }
 
@@ -1354,6 +1770,13 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
   }
 
   Future<void> _submit() async {
+    final createdBy = _createdByCtrl.text.trim();
+    if (createdBy.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter the name of the person who created this session.')),
+      );
+      return;
+    }
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(milliseconds: 800));
     final req = SessionRequestModel(
@@ -1361,13 +1784,27 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
       brandId: widget.brand.id,
       brandName: widget.brand.brandName,
       brandType: widget.brand.brandType,
+      createdBy: createdBy,
       requestedDate: _selectedDate,
       couponTiers: List.from(_tiers),
-      additionalNotes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      additionalNotes: _notesCtrl.text.trim().isEmpty
+          ? null
+          : _notesCtrl.text.trim(),
     );
-    widget.state.submitSessionRequest(req);
+    final saved = await widget.state.submitSessionRequest(req);
+    if (!mounted) return;
     setState(() => _isSubmitting = false);
-    widget.onSubmitted();
+    if (saved) {
+      widget.onSubmitted();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not send the request. Please check your connection and try again.',
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -1379,11 +1816,19 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Request a Generative Session', style: TextStyle(
-              fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+            const Text(
+              'Request a Generative Session',
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+            ),
             const SizedBox(height: 4),
-            const Text('Set your preferred date and coupon tiers. Admin will review and confirm.',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+            const Text(
+              'Set your preferred date and coupon tiers. Admin will review and confirm.',
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+            ),
             const SizedBox(height: 28),
             // Date picker
             _buildSectionTitle('📅 Preferred Session Date'),
@@ -1391,7 +1836,10 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
             GestureDetector(
               onTap: _pickDate,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   border: Border.all(color: AppTheme.borderLight),
@@ -1399,14 +1847,28 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today_rounded, size: 18, color: AppTheme.textSecondary),
+                    const Icon(
+                      Icons.calendar_today_rounded,
+                      size: 18,
+                      color: AppTheme.textSecondary,
+                    ),
                     const SizedBox(width: 10),
                     Text(
                       '${_monthName(_selectedDate.month)} ${_selectedDate.day}, ${_selectedDate.year}',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
                     const Spacer(),
-                    const Text('Change', style: TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Change',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1417,21 +1879,36 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
               children: [
                 Expanded(child: _buildSectionTitle('🏷️ Coupon Tiers')),
                 TextButton.icon(
-                  onPressed: _tiers.length < 5 ? () {
-                    setState(() => _tiers.add(CouponTier(slots: 200, discountPct: 15)));
-                  } : null,
+                  onPressed: _tiers.length < 5
+                      ? () {
+                          setState(
+                            () => _tiers.add(
+                              CouponTier(slots: 200, discountPct: 15),
+                            ),
+                          );
+                        }
+                      : null,
                   icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('Add Tier', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  label: const Text(
+                    'Add Tier',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
             const Text(
               'Define tiers from highest to lowest discount. First-come, first-served — fastest users get the best deal.',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, height: 1.4)),
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
             const SizedBox(height: 14),
-            ..._tiers.asMap().entries.map((entry) =>
-              _buildTierRow(entry.key, entry.value)),
+            ..._tiers.asMap().entries.map(
+              (entry) => _buildTierRow(entry.key, entry.value),
+            ),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(12),
@@ -1441,11 +1918,52 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.people_outline, size: 16, color: AppTheme.textSecondary),
+                  const Icon(
+                    Icons.people_outline,
+                    size: 16,
+                    color: AppTheme.textSecondary,
+                  ),
                   const SizedBox(width: 8),
-                  Text('Total slots across all tiers: $_totalSlots',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text(
+                    'Total slots across all tiers: $_totalSlots',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildSectionTitle('👤 Session Created By'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _createdByCtrl,
+              style: const TextStyle(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Full name of the person creating this session',
+                hintStyle: const TextStyle(
+                  color: AppTheme.textTertiary,
+                  fontSize: 14,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.borderLight),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.borderLight),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: AppTheme.pureBlack,
+                    width: 1.5,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -1456,51 +1974,83 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
               maxLines: 3,
               style: const TextStyle(fontSize: 14),
               decoration: InputDecoration(
-                hintText: 'Any special requirements, constraints, or message for the Zubix team...',
-                hintStyle: const TextStyle(color: AppTheme.textTertiary, fontSize: 14),
+                hintText:
+                    'Any special requirements, constraints, or message for the Zubix team...',
+                hintStyle: const TextStyle(
+                  color: AppTheme.textTertiary,
+                  fontSize: 14,
+                ),
                 filled: true,
                 fillColor: Colors.white,
                 contentPadding: const EdgeInsets.all(14),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppTheme.borderLight)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppTheme.borderLight)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppTheme.pureBlack, width: 1.5)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.borderLight),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.borderLight),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: AppTheme.pureBlack,
+                    width: 1.5,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 28),
             SizedBox(
               width: double.infinity,
               child: _isSubmitting
-                ? Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.pureBlack,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(width: 18, height: 18,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
-                        SizedBox(width: 12),
-                        Text('Submitting...', style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
-                      ],
-                    ),
-                  )
-                : ElevatedButton(
-                    onPressed: _tiers.isNotEmpty ? _submit : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.pureBlack,
-                      foregroundColor: Colors.white,
+                  ? Container(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(
+                        color: AppTheme.pureBlack,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Submitting...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ElevatedButton(
+                      onPressed: _tiers.isNotEmpty ? _submit : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.pureBlack,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Submit Session Request ✓',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
-                    child: const Text('Submit Session Request ✓',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                  ),
             ),
           ],
         ),
@@ -1520,25 +2070,42 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
       child: Row(
         children: [
           Container(
-            width: 28, height: 28,
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(
               color: AppTheme.pureBlack,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Center(child: Text('${index + 1}', style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12))),
+            child: Center(
+              child: Text(
+                '${index + 1}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Slots', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+                const Text(
+                  'Slots',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 _buildNumberInput(
                   value: tier.slots,
                   onChanged: (v) => setState(() => _tiers[index].slots = v),
-                  min: 1, max: 10000,
+                  min: 1,
+                  max: 10000,
                 ),
               ],
             ),
@@ -1548,12 +2115,21 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Discount %', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+                const Text(
+                  'Discount %',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 _buildNumberInput(
                   value: tier.discountPct,
-                  onChanged: (v) => setState(() => _tiers[index].discountPct = v),
-                  min: 1, max: 99,
+                  onChanged: (v) =>
+                      setState(() => _tiers[index].discountPct = v),
+                  min: 1,
+                  max: 99,
                 ),
               ],
             ),
@@ -1562,20 +2138,34 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
           Column(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.surfaceMuted,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text('${tier.discountPct}% OFF', style: const TextStyle(
-                  fontWeight: FontWeight.w800, fontSize: 13)),
+                child: Text(
+                  '${tier.discountPct}% OFF',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
               ),
               const SizedBox(height: 4),
               GestureDetector(
-                onTap: _tiers.length > 1 ? () => setState(() => _tiers.removeAt(index)) : null,
-                child: Icon(Icons.remove_circle_outline_rounded,
+                onTap: _tiers.length > 1
+                    ? () => setState(() => _tiers.removeAt(index))
+                    : null,
+                child: Icon(
+                  Icons.remove_circle_outline_rounded,
                   size: 20,
-                  color: _tiers.length > 1 ? const Color(0xFFDC2626) : AppTheme.textTertiary),
+                  color: _tiers.length > 1
+                      ? const Color(0xFFDC2626)
+                      : AppTheme.textTertiary,
+                ),
               ),
             ],
           ),
@@ -1602,12 +2192,18 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
       },
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppTheme.borderLight)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppTheme.borderLight)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppTheme.pureBlack, width: 1.5)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppTheme.borderLight),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppTheme.borderLight),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppTheme.pureBlack, width: 1.5),
+        ),
         filled: true,
         fillColor: AppTheme.surfaceLight,
       ),
@@ -1615,11 +2211,25 @@ class _RequestSessionFormState extends State<_RequestSessionForm> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15));
+    return Text(
+      title,
+      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+    );
   }
 
   String _monthName(int m) => const [
-    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    '',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ][m];
 }

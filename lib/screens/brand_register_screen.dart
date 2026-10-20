@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/brand_registration_model.dart';
+import '../models/category_model.dart';
+import '../services/api_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 
@@ -10,7 +12,12 @@ class BrandRegisterScreen extends StatefulWidget {
   final AppState state;
   final bool initialIsLogin;
   final VoidCallback? onBack;
-  const BrandRegisterScreen({super.key, required this.state, this.initialIsLogin = false, this.onBack});
+  const BrandRegisterScreen({
+    super.key,
+    required this.state,
+    this.initialIsLogin = false,
+    this.onBack,
+  });
 
   @override
   State<BrandRegisterScreen> createState() => _BrandRegisterScreenState();
@@ -51,20 +58,18 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
   final _hoursCtrl = TextEditingController(text: '10:00 AM - 9:00 PM');
 
   String _brandType = 'online_d2c'; // or 'local_store'
-  String _categoryId = 'cat_fashion';
+  String _categoryId = '';
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  final List<Map<String, String>> _categories = [
-    {'id': 'cat_fashion', 'label': 'Fashion & Lifestyle'},
-    {'id': 'cat_beauty', 'label': 'Beauty & Wellness'},
-    {'id': 'cat_food', 'label': 'Food & Beverage'},
-    {'id': 'cat_tech', 'label': 'Tech & Gadgets'},
-    {'id': 'cat_home', 'label': 'Home & Décor'},
-    {'id': 'cat_sports', 'label': 'Sports & Fitness'},
-    {'id': 'cat_books', 'label': 'Books & Stationery'},
-    {'id': 'cat_other', 'label': 'Other'},
-  ];
+  // Live categories from the backend, managed in the admin panel.
+  List<CategoryModel> get _categories => widget.state.categories;
+
+  // Falls back to the first available category if none is chosen yet.
+  String get _effectiveCategoryId {
+    if (_categories.any((c) => c.id == _categoryId)) return _categoryId;
+    return _categories.isNotEmpty ? _categories.first.id : '';
+  }
 
   @override
   void initState() {
@@ -79,33 +84,62 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
     _tabCtrl.dispose();
     _loginEmailCtrl.dispose();
     _loginPasswordCtrl.dispose();
-    _phoneCtrl.dispose(); _otpCtrl.dispose();
-    _brandNameCtrl.dispose(); _ownerNameCtrl.dispose();
-    _ownerEmailCtrl.dispose(); _passwordCtrl.dispose();
-    _websiteCtrl.dispose(); _instagramCtrl.dispose();
-    _descCtrl.dispose(); _cityCtrl.dispose(); _areaCtrl.dispose();
-    _addressCtrl.dispose(); _hoursCtrl.dispose();
+    _phoneCtrl.dispose();
+    _otpCtrl.dispose();
+    _brandNameCtrl.dispose();
+    _ownerNameCtrl.dispose();
+    _ownerEmailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _websiteCtrl.dispose();
+    _instagramCtrl.dispose();
+    _descCtrl.dispose();
+    _cityCtrl.dispose();
+    _areaCtrl.dispose();
+    _addressCtrl.dispose();
+    _hoursCtrl.dispose();
     super.dispose();
   }
 
   void _nextStep() => setState(() => _step = (_step + 1).clamp(0, 3));
   void _prevStep() => setState(() => _step = (_step - 1).clamp(0, 3));
 
-  void _sendOtp() {
-    if (_phoneCtrl.text.trim().length < 10) {
+  Future<void> _sendOtp() async {
+    final phone = _phoneCtrl.text.trim();
+    if (phone.length < 10) {
       _showSnack('Enter a valid 10-digit mobile number');
       return;
     }
+    final result = await ApiService.sendOtp(phone);
+    if (!mounted) return;
+    if (result == null || result['success'] != true) {
+      _showSnack('Could not send the OTP. Please try again.');
+      return;
+    }
     setState(() => _otpSent = true);
-    _showSnack('OTP sent to +91 ${_phoneCtrl.text.trim()}');
+    final devOtp = result['devOtp']?.toString();
+    _showSnack(
+      devOtp == null
+          ? 'OTP sent to +91 $phone'
+          : 'Dev build - your code is $devOtp',
+    );
   }
 
-  void _verifyOtp() {
-    if (_otpCtrl.text.trim().length < 4) {
+  Future<void> _verifyOtp() async {
+    final code = _otpCtrl.text.trim();
+    if (code.length < 4) {
       _showSnack('Enter the OTP received on your number');
       return;
     }
-    setState(() { _otpVerified = true; _step = 1; });
+    final ok = await ApiService.checkOtp(_phoneCtrl.text.trim(), code);
+    if (!mounted) return;
+    if (!ok) {
+      _showSnack('Wrong or expired OTP. Check the latest code and try again.');
+      return;
+    }
+    setState(() {
+      _otpVerified = true;
+      _step = 1;
+    });
     _showSnack('Phone verified successfully ✓');
   }
 
@@ -123,6 +157,16 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
       (_brandType == 'online_d2c' || _cityCtrl.text.trim().isNotEmpty);
 
   Future<void> _submitRegistration() async {
+    if (_effectiveCategoryId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No categories are available yet. Ask an admin to create one.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 1200));
 
@@ -132,24 +176,41 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
       ownerName: _ownerNameCtrl.text.trim(),
       ownerPhone: _phoneCtrl.text.trim(),
       ownerEmail: _ownerEmailCtrl.text.trim(),
-      password: _passwordCtrl.text.trim(),
       brandType: _brandType,
-      categoryId: _categoryId,
-      websiteUrl: _websiteCtrl.text.trim().isEmpty ? null : _websiteCtrl.text.trim(),
-      instagramUrl: _instagramCtrl.text.trim().isEmpty ? null : _instagramCtrl.text.trim(),
+      categoryId: _effectiveCategoryId,
+      websiteUrl: _websiteCtrl.text.trim().isEmpty
+          ? null
+          : _websiteCtrl.text.trim(),
+      instagramUrl: _instagramCtrl.text.trim().isEmpty
+          ? null
+          : _instagramCtrl.text.trim(),
       description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
       city: _brandType == 'local_store' ? _cityCtrl.text.trim() : null,
       area: _brandType == 'local_store' ? _areaCtrl.text.trim() : null,
       address: _brandType == 'local_store' ? _addressCtrl.text.trim() : null,
-      operatingHours: _brandType == 'local_store' ? _hoursCtrl.text.trim() : null,
+      operatingHours: _brandType == 'local_store'
+          ? _hoursCtrl.text.trim()
+          : null,
       status: 'pending',
     );
 
-    widget.state.submitBrandRegistration(reg);
+    final saved = await widget.state.submitBrandRegistration(
+      reg,
+      _passwordCtrl.text.trim(),
+    );
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (mounted) {
+    if (saved) {
       _showSuccessDialog();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not submit your registration. Please check your connection and try again.',
+          ),
+        ),
+      );
     }
   }
 
@@ -165,21 +226,36 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 72, height: 72,
+                width: 72,
+                height: 72,
                 decoration: BoxDecoration(
                   color: AppTheme.pureBlack,
                   borderRadius: BorderRadius.circular(36),
                 ),
-                child: const Icon(Icons.check_rounded, color: Colors.white, size: 36),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Colors.white,
+                  size: 36,
+                ),
               ),
               const SizedBox(height: 20),
-              const Text('Application Submitted!',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+              const Text(
+                'Application Submitted!',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 'Your brand registration is under review. You\'ll receive an email at ${_ownerEmailCtrl.text.trim()} once approved.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14, height: 1.5),
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 24),
               SizedBox(
@@ -193,9 +269,14 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                     backgroundColor: AppTheme.pureBlack,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: const Text('Go to Brand Portal', style: TextStyle(fontWeight: FontWeight.w700)),
+                  child: const Text(
+                    'Go to Brand Portal',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
             ],
@@ -223,25 +304,34 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       GestureDetector(
-                        onTap: widget.onBack ?? () => Navigator.of(context).pushReplacementNamed('/brands'),
+                        onTap:
+                            widget.onBack ??
+                            () => Navigator.of(
+                              context,
+                            ).pushReplacementNamed('/brands'),
                         child: Row(
                           children: [
                             Container(
-                              width: 32, height: 32,
+                              width: 32,
+                              height: 32,
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Center(
-                                child: Text('Z', style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 18,
-                                  color: Colors.black,
-                                )),
+                                child: Text(
+                                  'Z',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 18,
+                                    color: Colors.black,
+                                  ),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 10),
-                            const Text('zubix',
+                            const Text(
+                              'zubix',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w800,
@@ -254,7 +344,9 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                       ),
                       const SizedBox(height: 60),
                       Text(
-                        _isLoginMode ? 'Welcome to\nBrand Portal.' : 'Grow your brand\nwith Zubix.',
+                        _isLoginMode
+                            ? 'Welcome to\nBrand Portal.'
+                            : 'Grow your brand\nwith Zubix.',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 32,
@@ -287,12 +379,19 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                           ),
                           child: const Row(
                             children: [
-                              Icon(Icons.shield_outlined, color: Colors.white, size: 20),
+                              Icon(
+                                Icons.shield_outlined,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                               SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   'Secure brand partner login with end-to-end encryption.',
-                                  style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
+                                  style: TextStyle(
+                                    color: Color(0xFFAAAAAA),
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ),
                             ],
@@ -321,21 +420,40 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                       // Mobile logo
                       if (MediaQuery.of(context).size.width <= 800) ...[
                         GestureDetector(
-                          onTap: widget.onBack ?? () => Navigator.of(context).pushReplacementNamed('/brands'),
+                          onTap:
+                              widget.onBack ??
+                              () => Navigator.of(
+                                context,
+                              ).pushReplacementNamed('/brands'),
                           child: Row(
                             children: [
                               Container(
-                                width: 28, height: 28,
+                                width: 28,
+                                height: 28,
                                 decoration: BoxDecoration(
                                   color: AppTheme.pureBlack,
                                   borderRadius: BorderRadius.circular(7),
                                 ),
-                                child: const Center(child: Text('Z', style: TextStyle(
-                                  fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white))),
+                                child: const Center(
+                                  child: Text(
+                                    'Z',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 8),
-                              const Text('zubix', style: TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: -0.5)),
+                              const Text(
+                                'zubix',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 18,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -344,17 +462,34 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
 
                       // Back to Options Button
                       InkWell(
-                        onTap: widget.onBack ?? () => Navigator.of(context).pushReplacementNamed('/brands'),
+                        onTap:
+                            widget.onBack ??
+                            () => Navigator.of(
+                              context,
+                            ).pushReplacementNamed('/brands'),
                         borderRadius: BorderRadius.circular(8),
                         child: const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                          padding: EdgeInsets.symmetric(
+                            vertical: 6,
+                            horizontal: 4,
+                          ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.arrow_back_rounded, size: 18, color: AppTheme.textSecondary),
+                              Icon(
+                                Icons.arrow_back_rounded,
+                                size: 18,
+                                color: AppTheme.textSecondary,
+                              ),
                               SizedBox(width: 6),
-                              Text('Back to Options',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+                              Text(
+                                'Back to Options',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -372,40 +507,62 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                           children: [
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setState(() { _isLoginMode = false; _loginError = null; }),
+                                onTap: () => setState(() {
+                                  _isLoginMode = false;
+                                  _loginError = null;
+                                }),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: !_isLoginMode ? AppTheme.pureBlack : Colors.transparent,
+                                    color: !_isLoginMode
+                                        ? AppTheme.pureBlack
+                                        : Colors.transparent,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Center(
-                                    child: Text('Register Brand',
+                                    child: Text(
+                                      'Register Brand',
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
-                                        color: !_isLoginMode ? Colors.white : AppTheme.textSecondary,
-                                      )),
+                                        color: !_isLoginMode
+                                            ? Colors.white
+                                            : AppTheme.textSecondary,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setState(() { _isLoginMode = true; _loginError = null; }),
+                                onTap: () => setState(() {
+                                  _isLoginMode = true;
+                                  _loginError = null;
+                                }),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: _isLoginMode ? AppTheme.pureBlack : Colors.transparent,
+                                    color: _isLoginMode
+                                        ? AppTheme.pureBlack
+                                        : Colors.transparent,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Center(
-                                    child: Text('Brand Login',
+                                    child: Text(
+                                      'Brand Login',
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
-                                        color: _isLoginMode ? Colors.white : AppTheme.textSecondary,
-                                      )),
+                                        color: _isLoginMode
+                                            ? Colors.white
+                                            : AppTheme.textSecondary,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -421,8 +578,16 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 300),
                           transitionBuilder: (child, anim) => SlideTransition(
-                            position: Tween<Offset>(begin: const Offset(0.04, 0), end: Offset.zero)
-                                .animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+                            position:
+                                Tween<Offset>(
+                                  begin: const Offset(0.04, 0),
+                                  end: Offset.zero,
+                                ).animate(
+                                  CurvedAnimation(
+                                    parent: anim,
+                                    curve: Curves.easeOut,
+                                  ),
+                                ),
                             child: FadeTransition(opacity: anim, child: child),
                           ),
                           child: KeyedSubtree(
@@ -452,16 +617,26 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
       ('📊', 'Real-time analytics'),
       ('🏪', 'D2C & Local stores'),
     ];
-    return features.map((f) => Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Text(f.$1, style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 12),
-          Text(f.$2, style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 14)),
-        ],
-      ),
-    )).toList();
+    return features
+        .map(
+          (f) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Text(f.$1, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 12),
+                Text(
+                  f.$2,
+                  style: const TextStyle(
+                    color: Color(0xFFCCCCCC),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        )
+        .toList();
   }
 
   Widget _buildStepProgress() {
@@ -477,14 +652,23 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                 height: 4,
                 margin: EdgeInsets.only(right: i < steps.length - 1 ? 4 : 0),
                 decoration: BoxDecoration(
-                  color: done || active ? Colors.white : const Color(0xFF444444),
+                  color: done || active
+                      ? Colors.white
+                      : const Color(0xFF444444),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 6),
-              Text(steps[i], style: TextStyle(
-                color: done || active ? Colors.white : const Color(0xFF666666),
-                fontSize: 11, fontWeight: FontWeight.w600)),
+              Text(
+                steps[i],
+                style: TextStyle(
+                  color: done || active
+                      ? Colors.white
+                      : const Color(0xFF666666),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         );
@@ -498,7 +682,10 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildStepHeader('Create your brand account', 'Start with your mobile number'),
+        _buildStepHeader(
+          'Create your brand account',
+          'Start with your mobile number',
+        ),
         const SizedBox(height: 32),
         // Tab: Mobile / Google
         Container(
@@ -516,7 +703,10 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
             dividerColor: Colors.transparent,
             labelColor: Colors.white,
             unselectedLabelColor: AppTheme.textSecondary,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
             tabs: const [
               Tab(text: '  📱  Mobile OTP  '),
               Tab(text: '  G  Google  '),
@@ -554,7 +744,10 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                 border: Border.all(color: AppTheme.borderLight),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text('+91', style: TextStyle(fontWeight: FontWeight.w600)),
+              child: const Text(
+                '+91',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -562,7 +755,10 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                 controller: _phoneCtrl,
                 hint: '98765 43210',
                 keyboardType: TextInputType.phone,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
                 enabled: !_otpVerified,
               ),
             ),
@@ -572,12 +768,22 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.pureBlack,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 disabledBackgroundColor: AppTheme.borderLight,
               ),
-              child: Text(_otpVerified ? '✓' : 'Send OTP',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              child: Text(
+                _otpVerified ? '✓' : 'Send OTP',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ],
         ),
@@ -591,7 +797,10 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                   controller: _otpCtrl,
                   hint: '• • • • • •',
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
@@ -600,16 +809,26 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.pureBlack,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
-                child: const Text('Verify', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                child: const Text(
+                  'Verify',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text('Enter the 4–6 digit verification code sent to your mobile',
-            style: TextStyle(color: AppTheme.textTertiary, fontSize: 12)),
+          const Text(
+            'Enter the 4–6 digit verification code sent to your mobile',
+            style: TextStyle(color: AppTheme.textTertiary, fontSize: 12),
+          ),
         ],
         if (_otpVerified) ...[
           const SizedBox(height: 16),
@@ -622,10 +841,19 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
             ),
             child: Row(
               children: [
-                const Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 16),
+                const Icon(
+                  Icons.verified_rounded,
+                  color: Color(0xFF16A34A),
+                  size: 16,
+                ),
                 const SizedBox(width: 8),
-                Text('+91 ${_phoneCtrl.text} verified',
-                  style: const TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w600)),
+                Text(
+                  '+91 ${_phoneCtrl.text} verified',
+                  style: const TextStyle(
+                    color: Color(0xFF16A34A),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
@@ -638,10 +866,14 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                 backgroundColor: AppTheme.pureBlack,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: const Text('Continue to Brand Details →',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              child: const Text(
+                'Continue to Brand Details →',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
             ),
           ),
         ],
@@ -655,32 +887,65 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
       children: [
         OutlinedButton.icon(
           onPressed: () {
-            setState(() { _otpVerified = true; _step = 1; });
+            setState(() {
+              _otpVerified = true;
+              _step = 1;
+            });
             _showSnack('Signed in with Google');
           },
-          icon: const Text('G', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF4285F4))),
-          label: const Text('Continue with Google',
-            style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textPrimary, fontSize: 15)),
+          icon: const Text(
+            'G',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF4285F4),
+            ),
+          ),
+          label: const Text(
+            'Continue with Google',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+              fontSize: 15,
+            ),
+          ),
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             side: const BorderSide(color: AppTheme.borderLight, width: 1.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             minimumSize: const Size(double.infinity, 52),
           ),
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: () {
-            setState(() { _otpVerified = true; _step = 1; });
+            setState(() {
+              _otpVerified = true;
+              _step = 1;
+            });
             _showSnack('Signed in with Facebook');
           },
-          icon: const Icon(Icons.facebook_rounded, color: Color(0xFF1877F2), size: 22),
-          label: const Text('Continue with Facebook',
-            style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textPrimary, fontSize: 15)),
+          icon: const Icon(
+            Icons.facebook_rounded,
+            color: Color(0xFF1877F2),
+            size: 22,
+          ),
+          label: const Text(
+            'Continue with Facebook',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+              fontSize: 15,
+            ),
+          ),
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             side: const BorderSide(color: AppTheme.borderLight, width: 1.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             minimumSize: const Size(double.infinity, 52),
           ),
         ),
@@ -694,68 +959,99 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildStepHeader('Tell us about your brand', 'Fill in your brand details'),
+        _buildStepHeader(
+          'Tell us about your brand',
+          'Fill in your brand details',
+        ),
         const SizedBox(height: 24),
         // Brand Type Selector
         _buildLabel('Brand Type'),
         Row(
           children: [
-            _buildTypeChip('online_d2c', '🌐  D2C / Online Brand',
-              'Nationwide reach via Discover'),
+            _buildTypeChip(
+              'online_d2c',
+              '🌐  D2C / Online Brand',
+              'Nationwide reach via Discover',
+            ),
             const SizedBox(width: 10),
-            _buildTypeChip('local_store', '🏪  Local Physical Store',
-              'Nearby geographic discovery'),
+            _buildTypeChip(
+              'local_store',
+              '🏪  Local Physical Store',
+              'Nearby geographic discovery',
+            ),
           ],
         ),
         const SizedBox(height: 20),
         Row(
           children: [
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLabel('Brand Name *'),
-                _buildTextField(controller: _brandNameCtrl, hint: 'e.g. Zephyr Apparel'),
-              ],
-            )),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Brand Name *'),
+                  _buildTextField(
+                    controller: _brandNameCtrl,
+                    hint: 'e.g. Zephyr Apparel',
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLabel('Owner / Contact Name *'),
-                _buildTextField(controller: _ownerNameCtrl, hint: 'Full name'),
-              ],
-            )),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Owner / Contact Name *'),
+                  _buildTextField(
+                    controller: _ownerNameCtrl,
+                    hint: 'Full name',
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLabel('Business Email *'),
-                _buildTextField(controller: _ownerEmailCtrl,
-                  hint: 'contact@yourbrand.com',
-                  keyboardType: TextInputType.emailAddress),
-              ],
-            )),
-            const SizedBox(width: 12),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLabel('Portal Password *'),
-                _buildTextField(
-                  controller: _passwordCtrl,
-                  hint: '8+ characters',
-                  obscureText: _obscurePassword,
-                  suffix: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility,
-                      size: 18, color: AppTheme.textTertiary),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Business Email *'),
+                  _buildTextField(
+                    controller: _ownerEmailCtrl,
+                    hint: 'contact@yourbrand.com',
+                    keyboardType: TextInputType.emailAddress,
                   ),
-                ),
-              ],
-            )),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Portal Password *'),
+                  _buildTextField(
+                    controller: _passwordCtrl,
+                    hint: '8+ characters',
+                    obscureText: _obscurePassword,
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        size: 18,
+                        color: AppTheme.textTertiary,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -764,28 +1060,39 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLabel('Website URL'),
-                _buildTextField(controller: _websiteCtrl, hint: 'https://yourbrand.com'),
-              ],
-            )),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Website URL'),
+                  _buildTextField(
+                    controller: _websiteCtrl,
+                    hint: 'https://yourbrand.com',
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLabel('Instagram Handle'),
-                _buildTextField(controller: _instagramCtrl, hint: '@yourbrand'),
-              ],
-            )),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Instagram Handle'),
+                  _buildTextField(
+                    controller: _instagramCtrl,
+                    hint: '@yourbrand',
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
         _buildLabel('Brand Description'),
         _buildTextField(
           controller: _descCtrl,
-          hint: 'Briefly describe your brand, products, and what makes you unique...',
+          hint:
+              'Briefly describe your brand, products, and what makes you unique...',
           maxLines: 3,
         ),
         // Physical store fields
@@ -797,26 +1104,36 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLabel('City *'),
-                  _buildTextField(controller: _cityCtrl, hint: 'e.g. Mumbai'),
-                ],
-              )),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLabel('City *'),
+                    _buildTextField(controller: _cityCtrl, hint: 'e.g. Mumbai'),
+                  ],
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLabel('Area / Locality'),
-                  _buildTextField(controller: _areaCtrl, hint: 'e.g. Bandra West'),
-                ],
-              )),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLabel('Area / Locality'),
+                    _buildTextField(
+                      controller: _areaCtrl,
+                      hint: 'e.g. Bandra West',
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           _buildLabel('Full Store Address'),
-          _buildTextField(controller: _addressCtrl, hint: '12 Street Name, Area, City - PIN'),
+          _buildTextField(
+            controller: _addressCtrl,
+            hint: '12 Street Name, Area, City - PIN',
+          ),
           const SizedBox(height: 16),
           _buildLabel('Operating Hours'),
           _buildTextField(controller: _hoursCtrl, hint: '10:00 AM - 9:00 PM'),
@@ -827,11 +1144,22 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
             OutlinedButton(
               onPressed: _prevStep,
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
                 side: const BorderSide(color: AppTheme.borderLight),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: const Text('← Back', style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+              child: const Text(
+                '← Back',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -841,11 +1169,15 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
                   backgroundColor: AppTheme.pureBlack,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   disabledBackgroundColor: AppTheme.borderLight,
                 ),
-                child: const Text('Review & Submit →',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                child: const Text(
+                  'Review & Submit →',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                ),
               ),
             ),
           ],
@@ -873,13 +1205,24 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 13,
-                color: selected ? Colors.white : AppTheme.textPrimary)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: selected ? Colors.white : AppTheme.textPrimary,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(sub, style: TextStyle(
-                fontSize: 11.5,
-                color: selected ? const Color(0xFFAAAAAA) : AppTheme.textSecondary)),
+              Text(
+                sub,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: selected
+                      ? const Color(0xFFAAAAAA)
+                      : AppTheme.textSecondary,
+                ),
+              ),
             ],
           ),
         ),
@@ -897,13 +1240,20 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: _categoryId,
+          value: _effectiveCategoryId.isEmpty ? null : _effectiveCategoryId,
           isExpanded: true,
-          onChanged: (v) => setState(() => _categoryId = v!),
-          items: _categories.map((c) => DropdownMenuItem(
-            value: c['id'],
-            child: Text(c['label']!, style: const TextStyle(fontSize: 14)),
-          )).toList(),
+          hint: const Text('No categories yet', style: TextStyle(fontSize: 14)),
+          onChanged: _categories.isEmpty
+              ? null
+              : (v) => setState(() => _categoryId = v!),
+          items: _categories
+              .map(
+                (c) => DropdownMenuItem(
+                  value: c.id,
+                  child: Text(c.name, style: const TextStyle(fontSize: 14)),
+                ),
+              )
+              .toList(),
         ),
       ),
     );
@@ -912,23 +1262,36 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
   // ─── STEP 2: REVIEW ───────────────────────────────────────────────────────
 
   Widget _buildReviewStep() {
-    final catLabel = _categories.firstWhere(
-      (c) => c['id'] == _categoryId, orElse: () => {'label': _categoryId})['label']!;
+    final catLabel =
+        _categories
+            .where((c) => c.id == _effectiveCategoryId)
+            .map((c) => c.name)
+            .firstOrNull ??
+        '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildStepHeader('Review your application', 'Everything correct? Submit to go live.'),
+        _buildStepHeader(
+          'Review your application',
+          'Everything correct? Submit to go live.',
+        ),
         const SizedBox(height: 24),
         _buildReviewCard('Brand Info', [
           ('Brand Name', _brandNameCtrl.text),
-          ('Type', _brandType == 'online_d2c' ? 'D2C / Online Brand' : 'Local Physical Store'),
+          (
+            'Type',
+            _brandType == 'online_d2c'
+                ? 'D2C / Online Brand'
+                : 'Local Physical Store',
+          ),
           ('Category', catLabel),
           ('Owner', _ownerNameCtrl.text),
           ('Phone', '+91 ${_phoneCtrl.text}'),
           ('Email', _ownerEmailCtrl.text),
           if (_websiteCtrl.text.isNotEmpty) ('Website', _websiteCtrl.text),
-          if (_instagramCtrl.text.isNotEmpty) ('Instagram', _instagramCtrl.text),
+          if (_instagramCtrl.text.isNotEmpty)
+            ('Instagram', _instagramCtrl.text),
         ]),
         if (_brandType == 'local_store') ...[
           const SizedBox(height: 16),
@@ -955,7 +1318,11 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
               const Expanded(
                 child: Text(
                   'Your application will be reviewed by the Zubix team within 1–2 business days. You\'ll get an email with your dashboard credentials once approved.',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF92400E), height: 1.5),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF92400E),
+                    height: 1.5,
+                  ),
                 ),
               ),
             ],
@@ -967,43 +1334,73 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
             OutlinedButton(
               onPressed: _prevStep,
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
                 side: const BorderSide(color: AppTheme.borderLight),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: const Text('← Back', style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+              child: const Text(
+                '← Back',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _isLoading
-                ? Container(
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    decoration: BoxDecoration(
-                      color: AppTheme.pureBlack,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(width: 18, height: 18, child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2)),
-                        SizedBox(width: 12),
-                        Text('Submitting...', style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
-                      ],
-                    ),
-                  )
-                : ElevatedButton(
-                    onPressed: _submitRegistration,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.pureBlack,
-                      foregroundColor: Colors.white,
+                  ? Container(
                       padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(
+                        color: AppTheme.pureBlack,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Submitting...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ElevatedButton(
+                      onPressed: _submitRegistration,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.pureBlack,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Submit Application ✓',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
-                    child: const Text('Submit Application ✓',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                  ),
             ),
           ],
         ),
@@ -1022,22 +1419,40 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
           const SizedBox(height: 12),
-          ...rows.map((r) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 110,
-                  child: Text(r.$1, style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 13))),
-                Expanded(child: Text(r.$2, style: const TextStyle(
-                  fontWeight: FontWeight.w600, fontSize: 13))),
-              ],
+          ...rows.map(
+            (r) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 110,
+                    child: Text(
+                      r.$1,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      r.$2,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          )),
+          ),
         ],
       ),
     );
@@ -1059,17 +1474,29 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
               height: 8,
               margin: const EdgeInsets.only(right: 4),
               decoration: BoxDecoration(
-                color: done || active ? AppTheme.pureBlack : AppTheme.borderLight,
+                color: done || active
+                    ? AppTheme.pureBlack
+                    : AppTheme.borderLight,
                 borderRadius: BorderRadius.circular(4),
               ),
             );
           }),
         ),
         const SizedBox(height: 16),
-        Text(title, style: const TextStyle(
-          fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5, height: 1.2)),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            height: 1.2,
+          ),
+        ),
         const SizedBox(height: 6),
-        Text(sub, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+        Text(
+          sub,
+          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+        ),
       ],
     );
   }
@@ -1077,8 +1504,14 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
   Widget _buildLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(label, style: const TextStyle(
-        fontWeight: FontWeight.w600, fontSize: 13, color: AppTheme.textSecondary)),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          color: AppTheme.textSecondary,
+        ),
+      ),
     );
   }
 
@@ -1105,11 +1538,17 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: AppTheme.textTertiary, fontSize: 14),
+          hintStyle: const TextStyle(
+            color: AppTheme.textTertiary,
+            fontSize: 14,
+          ),
           suffixIcon: suffix,
           filled: true,
           fillColor: enabled ? Colors.white : AppTheme.surfaceLight,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: const BorderSide(color: AppTheme.borderLight),
@@ -1139,12 +1578,20 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
       children: [
         const Text(
           'Brand Partner Login',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
         ),
         const SizedBox(height: 6),
         const Text(
           'Sign in to manage your brand dashboard, schedule generative sessions, and view redemptions.',
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, height: 1.4),
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 14,
+            height: 1.4,
+          ),
         ),
         const SizedBox(height: 28),
 
@@ -1158,12 +1605,20 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
             ),
             child: Row(
               children: [
-                const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 20),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: Color(0xFFDC2626),
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     _loginError!,
-                    style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      color: Color(0xFF991B1B),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -1187,10 +1642,16 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
           style: const TextStyle(fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Enter your password',
-            hintStyle: const TextStyle(color: AppTheme.textTertiary, fontSize: 14),
+            hintStyle: const TextStyle(
+              color: AppTheme.textTertiary,
+              fontSize: 14,
+            ),
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppTheme.borderLight),
@@ -1201,15 +1662,22 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppTheme.pureBlack, width: 1.5),
+              borderSide: const BorderSide(
+                color: AppTheme.pureBlack,
+                width: 1.5,
+              ),
             ),
             suffixIcon: IconButton(
               icon: Icon(
-                _obscureLoginPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                _obscureLoginPassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
                 size: 18,
                 color: AppTheme.textSecondary,
               ),
-              onPressed: () => setState(() => _obscureLoginPassword = !_obscureLoginPassword),
+              onPressed: () => setState(
+                () => _obscureLoginPassword = !_obscureLoginPassword,
+              ),
             ),
           ),
         ),
@@ -1223,87 +1691,55 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
               backgroundColor: AppTheme.pureBlack,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            child: const Text('Sign In to Brand Dashboard →',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+            child: const Text(
+              'Sign In to Brand Dashboard →',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            ),
           ),
         ),
 
         const SizedBox(height: 24),
         Center(
           child: TextButton(
-            onPressed: () => setState(() { _isLoginMode = false; _loginError = null; }),
-            child: const Text('Don\'t have an account? Apply to Register Brand →',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppTheme.pureBlack)),
-          ),
-        ),
-
-        // Quick login helper if brands are already registered
-        if (widget.state.brandRegistrations.isNotEmpty) ...[
-          const SizedBox(height: 32),
-          const Divider(),
-          const SizedBox(height: 16),
-          const Text('Registered Brands in System (Tap to Autofill):',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textSecondary)),
-          const SizedBox(height: 8),
-          ...widget.state.brandRegistrations.map((b) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: OutlinedButton(
-              onPressed: () {
-                _loginEmailCtrl.text = b.ownerEmail;
-                _loginPasswordCtrl.text = b.password;
-                _handleBrandLogin();
-              },
-              style: OutlinedButton.styleFrom(
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                side: const BorderSide(color: AppTheme.borderLight),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.business_rounded, size: 16, color: AppTheme.pureBlack),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('${b.brandName} (${b.ownerEmail})',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppTheme.pureBlack)),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: b.status == 'approved' ? Colors.green.shade50 : Colors.amber.shade50,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(b.status.toUpperCase(),
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
-                        color: b.status == 'approved' ? Colors.green.shade800 : Colors.amber.shade900)),
-                  ),
-                ],
+            onPressed: () => setState(() {
+              _isLoginMode = false;
+              _loginError = null;
+            }),
+            child: const Text(
+              'Don\'t have an account? Apply to Register Brand →',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: AppTheme.pureBlack,
               ),
             ),
-          )),
-        ],
+          ),
+        ),
       ],
     );
   }
 
-  void _handleBrandLogin() {
+  Future<void> _handleBrandLogin() async {
     final email = _loginEmailCtrl.text.trim();
     final pass = _loginPasswordCtrl.text.trim();
 
     if (email.isEmpty || pass.isEmpty) {
-      setState(() => _loginError = 'Please enter both your email and password.');
+      setState(
+        () => _loginError = 'Please enter both your email and password.',
+      );
       return;
     }
 
-    final success = widget.state.loginBrand(email, pass);
-    if (success) {
+    final error = await widget.state.loginBrand(email, pass);
+    if (!mounted) return;
+    if (error == null) {
       Navigator.of(context).pushReplacementNamed('/brands');
     } else {
-      setState(() {
-        _loginError = 'Invalid email or password. Please verify your credentials or ensure your brand application is submitted.';
-      });
+      setState(() => _loginError = error);
     }
   }
 }

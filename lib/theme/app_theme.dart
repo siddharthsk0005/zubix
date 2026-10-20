@@ -28,7 +28,6 @@ class AppTheme {
         secondary: accentDark,
         onSecondary: pureWhite,
       ),
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       appBarTheme: const AppBarTheme(
         backgroundColor: pureWhite,
         foregroundColor: pureBlack,

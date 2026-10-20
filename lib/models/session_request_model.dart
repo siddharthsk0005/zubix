@@ -36,6 +36,7 @@ class SessionRequestModel {
   final String brandId;
   final String brandName;
   final String brandType; // 'online_d2c' or 'local_store'
+  final String? createdBy; // person who created the session request
   DateTime requestedDate;
   List<CouponTier> couponTiers;
   String? additionalNotes;
@@ -54,6 +55,7 @@ class SessionRequestModel {
     required this.brandId,
     required this.brandName,
     required this.brandType,
+    this.createdBy,
     required this.requestedDate,
     required this.couponTiers,
     this.additionalNotes,
@@ -76,6 +78,7 @@ class SessionRequestModel {
     String? brandId,
     String? brandName,
     String? brandType,
+    String? createdBy,
     DateTime? requestedDate,
     List<CouponTier>? couponTiers,
     String? additionalNotes,
@@ -92,6 +95,7 @@ class SessionRequestModel {
       brandId: brandId ?? this.brandId,
       brandName: brandName ?? this.brandName,
       brandType: brandType ?? this.brandType,
+      createdBy: createdBy ?? this.createdBy,
       requestedDate: requestedDate ?? this.requestedDate,
       couponTiers: couponTiers ?? this.couponTiers,
       additionalNotes: additionalNotes ?? this.additionalNotes,
@@ -110,6 +114,7 @@ class SessionRequestModel {
     'brandId': brandId,
     'brandName': brandName,
     'brandType': brandType,
+    'createdBy': createdBy,
     'requestedDate': requestedDate.toIso8601String(),
     'couponTiers': couponTiers.map((t) => t.toJson()).toList(),
     'additionalNotes': additionalNotes,
@@ -128,6 +133,7 @@ class SessionRequestModel {
       brandId: json['brandId'] as String,
       brandName: json['brandName'] as String? ?? '',
       brandType: json['brandType'] as String? ?? 'online_d2c',
+      createdBy: json['createdBy'] as String?,
       requestedDate: DateTime.parse(json['requestedDate'] as String),
       couponTiers: (json['couponTiers'] as List<dynamic>?)
           ?.map((t) => CouponTier.fromJson(t as Map<String, dynamic>))

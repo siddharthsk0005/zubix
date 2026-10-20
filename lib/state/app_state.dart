@@ -32,6 +32,9 @@ class AppState extends ChangeNotifier {
   AppState() {
     _loadFromStorage();
     initFromBackend();
+    if (_activeBrandRegistration != null) {
+      loadBrandSessionRequests().then((_) => notifyListeners());
+    }
   }
 
   Future<void> initFromBackend() async {
@@ -56,7 +59,9 @@ class AppState extends ChangeNotifier {
         _sessions.addAll(remoteSessions);
       }
 
-      final remoteVouchers = await ApiService.getVouchers(userId: _currentUserId);
+      final remoteVouchers = await ApiService.getVouchers(
+        userId: _currentUserId,
+      );
       if (remoteVouchers != null && remoteVouchers.isNotEmpty) {
         _myVouchers.clear();
         _myVouchers.addAll(remoteVouchers);
@@ -111,48 +116,13 @@ class AppState extends ChangeNotifier {
   // ----------------------------------------------------
   // CATEGORIES (Fully Flexible & Dynamic)
   // ----------------------------------------------------
-  final List<CategoryModel> _categories = [
-    CategoryModel(
-      id: 'cat_fashion',
-      name: 'Fashion and Lifestyle',
-      slug: 'fashion-lifestyle',
-      iconName: 'checkroom',
-      displayOrder: 1,
-    ),
-    CategoryModel(
-      id: 'cat_beauty',
-      name: 'Beauty and Body Care',
-      slug: 'beauty-body-care',
-      iconName: 'spa',
-      displayOrder: 2,
-    ),
-    CategoryModel(
-      id: 'cat_home',
-      name: 'Home Essentials',
-      slug: 'home-essentials',
-      iconName: 'home',
-      displayOrder: 3,
-    ),
-    CategoryModel(
-      id: 'cat_cosmetics',
-      name: 'Cosmetics',
-      slug: 'cosmetics',
-      iconName: 'brush',
-      displayOrder: 4,
-    ),
-    CategoryModel(
-      id: 'cat_electronics',
-      name: 'Electronics and Devices',
-      slug: 'electronics-devices',
-      iconName: 'devices',
-      displayOrder: 5,
-    ),
-  ];
+  final List<CategoryModel> _categories = [];
 
-  List<CategoryModel> get categories => _categories.where((c) => c.isActive).toList();
+  List<CategoryModel> get categories =>
+      _categories.where((c) => c.isActive).toList();
   List<CategoryModel> get allCategories => _categories;
 
-  String _selectedCategoryId = 'cat_fashion';
+  String _selectedCategoryId = '';
   String get selectedCategoryId => _selectedCategoryId;
 
   void selectCategory(String id) {
@@ -185,7 +155,11 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> updateCategory(String id, String newName, {bool? isActive}) async {
+  Future<void> updateCategory(
+    String id,
+    String newName, {
+    bool? isActive,
+  }) async {
     final index = _categories.indexWhere((c) => c.id == id);
     if (index != -1) {
       _categories[index].name = newName;
@@ -218,7 +192,8 @@ class AppState extends ChangeNotifier {
   final List<BrandModel> _brands = [];
 
   List<BrandModel> get brands => _brands;
-  List<BrandModel> get approvedBrands => _brands.where((b) => b.isApproved).toList();
+  List<BrandModel> get approvedBrands =>
+      _brands.where((b) => b.isApproved).toList();
 
   List<BrandModel> getBrandsForCategory(String catId) {
     return _brands.where((b) => b.categoryId == catId && b.isApproved).toList();
@@ -291,11 +266,15 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<Map<String, dynamic>> verifyAndRedeemCounterVoucher(String code) async {
+  Future<Map<String, dynamic>> verifyAndRedeemCounterVoucher(
+    String code,
+  ) async {
     final cleanCode = code.trim().toUpperCase();
 
     // 1. Check local in-memory wallet
-    final localIdx = _myVouchers.indexWhere((v) => v.code.toUpperCase() == cleanCode);
+    final localIdx = _myVouchers.indexWhere(
+      (v) => v.code.toUpperCase() == cleanCode,
+    );
     if (localIdx != -1) {
       if (_myVouchers[localIdx].isRedeemed) {
         return {
@@ -333,16 +312,19 @@ class AppState extends ChangeNotifier {
     };
   }
 
-  Future<void> approveBrand(String brandId, bool approve) async {
+  Future<bool> approveBrand(String brandId, bool approve) async {
     final idx = _brands.indexWhere((b) => b.id == brandId);
-    if (idx != -1) {
-      _brands[idx].isApproved = approve;
-      notifyListeners();
+    if (idx == -1) return false;
+    final previous = _brands[idx].isApproved;
+    _brands[idx].isApproved = approve;
+    notifyListeners();
 
-      try {
-        await ApiService.approveBrand(brandId, approve);
-      } catch (_) {}
+    final ok = await ApiService.approveBrand(brandId, approve);
+    if (!ok) {
+      _brands[idx].isApproved = previous;
+      notifyListeners();
     }
+    return ok;
   }
 
   // ----------------------------------------------------
@@ -354,7 +336,9 @@ class AppState extends ChangeNotifier {
 
   SessionModel? getActiveSessionForBrand(String brandId) {
     try {
-      return _sessions.firstWhere((s) => s.brandId == brandId && s.status == 'active');
+      return _sessions.firstWhere(
+        (s) => s.brandId == brandId && s.status == 'active',
+      );
     } catch (_) {
       return null;
     }
@@ -400,7 +384,8 @@ class AppState extends ChangeNotifier {
   BrandModel? _activeParticipatingBrand;
   BrandModel? get activeParticipatingBrand => _activeParticipatingBrand;
 
-  SessionParticipationStatus _participationStatus = SessionParticipationStatus.idle;
+  SessionParticipationStatus _participationStatus =
+      SessionParticipationStatus.idle;
   SessionParticipationStatus get participationStatus => _participationStatus;
 
   int _remainingSeconds = 0;
@@ -451,7 +436,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _completeSessionAndUnlockVoucher() async {
-    if (_activeParticipatingSession == null || _activeParticipatingBrand == null) return;
+    if (_activeParticipatingSession == null ||
+        _activeParticipatingBrand == null)
+      return;
 
     final session = _activeParticipatingSession!;
     final brand = _activeParticipatingBrand!;
@@ -467,18 +454,26 @@ class AppState extends ChangeNotifier {
       );
     } catch (_) {}
 
-    final finalVoucher = serverVoucher ?? VoucherModel(
-      id: 'vouch_${DateTime.now().millisecondsSinceEpoch}',
-      code: session.couponCode,
-      brandName: brand.name,
-      brandLogoUrl: brand.logoUrl,
-      brandWebsite: brand.websiteUrl,
-      discountValue: session.discountValue,
-      categoryName: categories.firstWhere((c) => c.id == brand.categoryId, orElse: () => categories.first).name,
-      claimedAt: DateTime.now(),
-      expiresAt: DateTime.now().add(const Duration(days: 14)),
-      terms: 'Valid on official store checkout. Single-use per account.',
-    );
+    final finalVoucher =
+        serverVoucher ??
+        VoucherModel(
+          id: 'vouch_${DateTime.now().millisecondsSinceEpoch}',
+          code: session.couponCode,
+          brandName: brand.name,
+          brandLogoUrl: brand.logoUrl,
+          brandWebsite: brand.websiteUrl,
+          discountValue: session.discountValue,
+          categoryName: categories
+              .firstWhere(
+                (c) => c.id == brand.categoryId,
+                orElse: () =>
+                    CategoryModel(id: '', name: 'General', slug: 'general'),
+              )
+              .name,
+          claimedAt: DateTime.now(),
+          expiresAt: DateTime.now().add(const Duration(days: 14)),
+          terms: 'Valid on official store checkout. Single-use per account.',
+        );
 
     _myVouchers.insert(0, finalVoucher);
     _latestUnlockedVoucher = finalVoucher;
@@ -515,20 +510,11 @@ class AppState extends ChangeNotifier {
   // ----------------------------------------------------
   // BRAND REGISTRATIONS (Onboarding Applications & Active Brand)
   // ----------------------------------------------------
-  String? _currentBrandRegistrationId;
-  String? get currentBrandRegistrationId => _currentBrandRegistrationId;
-
-  set currentBrandRegistrationId(String? id) {
-    _currentBrandRegistrationId = id;
-    _saveToStorage();
-    notifyListeners();
-  }
-
-  BrandRegistrationModel? get currentBrandRegistration {
-    if (_currentBrandRegistrationId == null) return null;
-    final found = _brandRegistrations.where((r) => r.id == _currentBrandRegistrationId);
-    return found.isNotEmpty ? found.first : null;
-  }
+  // Signed-in brand's registration. Restored from local storage after a refresh.
+  BrandRegistrationModel? _activeBrandRegistration =
+      ApiService.restoredBrandRegistration;
+  BrandRegistrationModel? get currentBrandRegistration =>
+      _activeBrandRegistration;
 
   final List<BrandRegistrationModel> _brandRegistrations = [];
 
@@ -537,90 +523,133 @@ class AppState extends ChangeNotifier {
   List<BrandRegistrationModel> get pendingRegistrations =>
       _brandRegistrations.where((r) => r.status == 'pending').toList();
 
-  bool loginBrand(String email, String password) {
-    final cleanEmail = email.trim().toLowerCase();
-    for (final reg in _brandRegistrations) {
-      if (reg.ownerEmail.trim().toLowerCase() == cleanEmail) {
-        if (password.isEmpty || reg.password == password.trim()) {
-          _currentBrandRegistrationId = reg.id;
-          _saveToStorage();
-          notifyListeners();
-          return true;
-        }
-      }
+  // Customer sign-ups awaiting admin approval (raw backend rows).
+  final List<Map<String, dynamic>> _customerApprovals = [];
+
+  List<Map<String, dynamic>> get customerApprovals => _customerApprovals;
+
+  int get pendingCustomerApprovals => _customerApprovals.length;
+
+  // Returns null on success, or the message to show the user.
+  Future<String?> loginBrand(String email, String password) async {
+    try {
+      _activeBrandRegistration = await ApiService.brandLogin(email, password);
+    } on BrandAuthException catch (e) {
+      return e.message;
     }
-    return false;
+    await loadBrandSessionRequests();
+    notifyListeners();
+    return null;
   }
 
-  void submitBrandRegistration(BrandRegistrationModel reg) {
-    // Check if brand already applied (reapply clears old rejected entry)
-    _brandRegistrations.removeWhere(
-        (r) => r.ownerPhone == reg.ownerPhone && r.status == 'rejected');
-    _brandRegistrations.removeWhere((r) => r.id == reg.id);
-    _brandRegistrations.insert(0, reg);
-    _currentBrandRegistrationId = reg.id;
+  void signOutBrand() {
+    ApiService.brandSignOut();
+    _activeBrandRegistration = null;
+    _sessionRequests.clear();
+    notifyListeners();
+  }
+
+  // Swaps in a registration saved from the brand profile editor.
+  void replaceBrandRegistration(BrandRegistrationModel reg) {
+    if (_activeBrandRegistration?.id == reg.id) {
+      _activeBrandRegistration = reg;
+    }
+    final index = _brandRegistrations.indexWhere((r) => r.id == reg.id);
+    if (index != -1) _brandRegistrations[index] = reg;
+    notifyListeners();
+  }
+
+  // Loads only this brand's requests (the server rejects admin-wide lists for brand tokens).
+  Future<void> loadBrandSessionRequests() async {
+    final reqs = await ApiService.getBrandSessionRequests();
+    if (reqs != null) {
+      _sessionRequests
+        ..clear()
+        ..addAll(reqs);
+    }
+    notifyListeners();
+  }
+
+  // The password is sent to the backend (hashed there) and is never kept on this device.
+  Future<bool> submitBrandRegistration(
+    BrandRegistrationModel reg,
+    String password,
+  ) async {
+    final saved = await ApiService.submitBrandRegistration(reg, password);
+    return saved != null;
+  }
+
+  // Replaces the admin queue with the backend's list (server is the source of truth).
+  Future<void> loadAdminQueues() async {
+    final regs = await ApiService.getBrandRegistrations();
+    if (regs != null) {
+      _brandRegistrations
+        ..clear()
+        ..addAll(regs);
+    }
+    final reqs = await ApiService.getSessionRequests();
+    if (reqs != null) {
+      _sessionRequests
+        ..clear()
+        ..addAll(reqs);
+    }
+    final customers = await ApiService.getCustomerApprovals();
+    if (customers != null) {
+      _customerApprovals
+        ..clear()
+        ..addAll(customers);
+    }
     _saveToStorage();
     notifyListeners();
   }
 
-  void approveBrandRegistration(String regId, {String reviewedBy = 'Zubix Admin'}) {
-    final idx = _brandRegistrations.indexWhere((r) => r.id == regId);
-    if (idx == -1) return;
-    _brandRegistrations[idx] = _brandRegistrations[idx].copyWith(
-      status: 'approved',
-      reviewedAt: DateTime.now(),
+  // After any admin action, refresh the admin queues and the public brand/session data.
+  Future<void> _refreshAfterReview() async {
+    await loadAdminQueues();
+    await initFromBackend();
+  }
+
+  Future<bool> approveBrandRegistration(
+    String regId, {
+    String reviewedBy = 'Admin',
+  }) async {
+    final updated = await ApiService.reviewBrandRegistration(
+      regId,
+      action: 'approve',
       reviewedBy: reviewedBy,
     );
-    final reg = _brandRegistrations[idx];
-
-    // INJECT REAL BRAND MODEL INTO THE ECOSYSTEM
-    final newBrand = BrandModel(
-      id: reg.id,
-      name: reg.brandName,
-      tagline: reg.brandType == 'online_d2c' ? 'Curated D2C Brand' : 'Boutique Atelier',
-      bio: reg.description != null && reg.description!.isNotEmpty
-          ? reg.description!
-          : '${reg.brandName} exclusive collections on Zubix.',
-      logoUrl: '',
-      showcaseImages: const [],
-      websiteUrl: reg.websiteUrl ?? '',
-      socialLinks: {'instagram': reg.instagramUrl ?? ''},
-      contactEmail: reg.ownerEmail,
-      contactPhone: reg.ownerPhone,
-      categoryId: reg.categoryId,
-      isApproved: true,
-      isPhysicalStore: reg.brandType == 'local_store',
-      storeType: reg.brandType,
-      city: reg.city,
-      area: reg.area,
-      address: reg.address,
-      timings: reg.operatingHours ?? '10:00 AM - 9:00 PM',
-    );
-
-    if (reg.brandType == 'local_store') {
-      _nearbyStores.removeWhere((b) => b.id == reg.id);
-      _nearbyStores.insert(0, newBrand);
-    } else {
-      _brands.removeWhere((b) => b.id == reg.id);
-      _brands.insert(0, newBrand);
-    }
-
-    _saveToStorage();
-    notifyListeners();
+    if (updated == null) return false;
+    await _refreshAfterReview();
+    return true;
   }
 
-  void rejectBrandRegistration(String regId, String reason,
-      {String reviewedBy = 'Zubix Admin'}) {
-    final idx = _brandRegistrations.indexWhere((r) => r.id == regId);
-    if (idx == -1) return;
-    _brandRegistrations[idx] = _brandRegistrations[idx].copyWith(
-      status: 'rejected',
-      rejectionReason: reason,
-      reviewedAt: DateTime.now(),
+  Future<bool> rejectBrandRegistration(
+    String regId,
+    String reason, {
+    String reviewedBy = 'Admin',
+  }) async {
+    final updated = await ApiService.reviewBrandRegistration(
+      regId,
+      action: 'reject',
+      reason: reason,
       reviewedBy: reviewedBy,
     );
-    _saveToStorage();
-    notifyListeners();
+    if (updated == null) return false;
+    await _refreshAfterReview();
+    return true;
+  }
+
+  Future<bool> reviewCustomerApproval(
+    String userId, {
+    required bool approve,
+  }) async {
+    final ok = await ApiService.reviewCustomerApproval(
+      userId,
+      action: approve ? 'approve' : 'reject',
+    );
+    if (!ok) return false;
+    await loadAdminQueues();
+    return true;
   }
 
   // ----------------------------------------------------
@@ -633,127 +662,77 @@ class AppState extends ChangeNotifier {
   List<SessionRequestModel> get pendingSessionRequests =>
       _sessionRequests.where((r) => r.status == 'pending_approval').toList();
 
-  void submitSessionRequest(SessionRequestModel req) {
+  // Returns true when the server saved the request.
+  Future<bool> submitSessionRequest(SessionRequestModel req) async {
+    final saved = await ApiService.submitSessionRequest(req);
+    if (saved == null) return false;
     _sessionRequests.removeWhere((s) => s.id == req.id);
-    _sessionRequests.insert(0, req);
-    _saveToStorage();
+    _sessionRequests.insert(0, saved);
     notifyListeners();
+    return true;
   }
 
-  void approveSessionRequest(String reqId, {String reviewedBy = 'Zubix Admin'}) {
-    final idx = _sessionRequests.indexWhere((r) => r.id == reqId);
-    if (idx == -1) return;
-    final req = _sessionRequests[idx];
-    _sessionRequests[idx] = req.copyWith(
-      status: 'approved',
-      reviewedAt: DateTime.now(),
+  // Server creates the live session and coupon when approved.
+  Future<bool> approveSessionRequest(
+    String reqId, {
+    String reviewedBy = 'Admin',
+  }) async {
+    final updated = await ApiService.reviewSessionRequest(
+      reqId,
+      action: 'approve',
       reviewedBy: reviewedBy,
     );
-
-    // Ensure the BrandModel exists in either _brands or _nearbyStores
-    if (!_brands.any((b) => b.id == req.brandId) && !_nearbyStores.any((b) => b.id == req.brandId)) {
-      final regMatch = _brandRegistrations.where((r) => r.id == req.brandId);
-      final reg = regMatch.isNotEmpty
-          ? regMatch.first
-          : BrandRegistrationModel(
-              id: req.brandId,
-              brandName: req.brandName,
-              ownerName: 'Brand Owner',
-              ownerPhone: '',
-              ownerEmail: '',
-              password: '',
-              brandType: req.brandType,
-              categoryId: 'cat_fashion',
-            );
-      final brand = BrandModel(
-        id: reg.id,
-        name: reg.brandName,
-        tagline: reg.brandType == 'online_d2c' ? 'Curated D2C Brand' : 'Boutique Atelier',
-        bio: reg.description ?? '${reg.brandName} exclusive collections on Zubix.',
-        logoUrl: '',
-        showcaseImages: const [],
-        websiteUrl: reg.websiteUrl ?? '',
-        socialLinks: {},
-        contactEmail: reg.ownerEmail,
-        contactPhone: reg.ownerPhone,
-        categoryId: reg.categoryId,
-        isApproved: true,
-        isPhysicalStore: reg.brandType == 'local_store',
-        storeType: reg.brandType,
-        city: reg.city ?? 'Bengaluru',
-        area: reg.area,
-        address: reg.address,
-      );
-      if (reg.brandType == 'local_store') {
-        _nearbyStores.insert(0, brand);
-      } else {
-        _brands.insert(0, brand);
-      }
-    }
-
-    final topDiscount = req.couponTiers.isNotEmpty ? req.couponTiers.first.discountPct : 20;
-    final couponLabel = '$topDiscount% OFF';
-    final cleanPrefix = req.brandName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
-    final codePrefix = cleanPrefix.length >= 4
-        ? cleanPrefix.substring(0, 4)
-        : (cleanPrefix.isEmpty ? 'BRAND' : cleanPrefix);
-
-    // Auto-create and immediately ACTIVATE the live session for the app
-    final newSession = SessionModel(
-      id: 'session_sr_$reqId',
-      title: '${req.brandName} Generative Session',
-      brandId: req.brandId,
-      sessionCreatedBy: req.brandName,
-      waitingDurationSeconds: 15,
-      discountValue: couponLabel,
-      couponCode: 'ZUBIX-$codePrefix-$topDiscount',
-      status: 'active', // ACTIVE so it immediately appears in Live Active Sessions!
-      totalVouchersPool: req.totalSlots,
-    );
-
-    _sessions.removeWhere((s) => s.id == newSession.id);
-    _sessions.insert(0, newSession);
-    _saveToStorage();
-    notifyListeners();
+    if (updated == null) return false;
+    await _refreshAfterReview();
+    return true;
   }
 
-  void rejectSessionRequest(String reqId, String reason,
-      {String reviewedBy = 'Zubix Admin'}) {
-    final idx = _sessionRequests.indexWhere((r) => r.id == reqId);
-    if (idx == -1) return;
-    _sessionRequests[idx] = _sessionRequests[idx].copyWith(
-      status: 'rejected',
-      rejectionReason: reason,
-      reviewedAt: DateTime.now(),
+  Future<bool> rejectSessionRequest(
+    String reqId,
+    String reason, {
+    String reviewedBy = 'Admin',
+  }) async {
+    final updated = await ApiService.reviewSessionRequest(
+      reqId,
+      action: 'reject',
+      reason: reason,
       reviewedBy: reviewedBy,
     );
-    _saveToStorage();
-    notifyListeners();
+    if (updated == null) return false;
+    await loadAdminQueues();
+    return true;
   }
 
-  void proposeAlternateDates(String reqId, List<DateTime> dates,
-      {String reviewedBy = 'Zubix Admin'}) {
-    final idx = _sessionRequests.indexWhere((r) => r.id == reqId);
-    if (idx == -1) return;
-    _sessionRequests[idx] = _sessionRequests[idx].copyWith(
-      status: 'dates_proposed',
+  Future<bool> proposeAlternateDates(
+    String reqId,
+    List<DateTime> dates, {
+    String reviewedBy = 'Admin',
+  }) async {
+    final updated = await ApiService.reviewSessionRequest(
+      reqId,
+      action: 'propose',
       proposedDates: dates,
-      reviewedAt: DateTime.now(),
       reviewedBy: reviewedBy,
     );
-    _saveToStorage();
-    notifyListeners();
+    if (updated == null) return false;
+    await loadAdminQueues();
+    return true;
   }
 
-  void brandConfirmSessionDate(String reqId, DateTime confirmedDate) {
-    final idx = _sessionRequests.indexWhere((r) => r.id == reqId);
-    if (idx == -1) return;
-    _sessionRequests[idx] = _sessionRequests[idx].copyWith(
-      status: 'brand_confirmed',
-      confirmedDate: confirmedDate,
+  Future<bool> brandConfirmSessionDate(
+    String reqId,
+    DateTime confirmedDate,
+  ) async {
+    final updated = await ApiService.confirmSessionRequest(
+      reqId,
+      confirmedDate,
     );
+    if (updated == null) return false;
+    final idx = _sessionRequests.indexWhere((r) => r.id == reqId);
+    if (idx != -1) _sessionRequests[idx] = updated;
     _saveToStorage();
     notifyListeners();
+    return true;
   }
 
   // ----------------------------------------------------
@@ -761,32 +740,35 @@ class AppState extends ChangeNotifier {
   // ----------------------------------------------------
   void _saveToStorage() {
     try {
-      // 1. Brand Registrations
-      final regJson = jsonEncode(_brandRegistrations.map((r) => r.toJson()).toList());
-      LocalStorageService.setString('zubix_brand_registrations', regJson);
+      // 1. Custom approved D2C Brands
+      final customBrands = _brands
+          .where((b) => b.id.startsWith('reg_'))
+          .map((b) => b.toJson())
+          .toList();
+      LocalStorageService.setString(
+        'zubix_custom_brands',
+        jsonEncode(customBrands),
+      );
 
-      // 2. Session Requests
-      final reqJson = jsonEncode(_sessionRequests.map((s) => s.toJson()).toList());
-      LocalStorageService.setString('zubix_session_requests', reqJson);
+      // 2. Custom approved Nearby Boutiques
+      final customNearby = _nearbyStores
+          .where((b) => b.id.startsWith('reg_'))
+          .map((b) => b.toJson())
+          .toList();
+      LocalStorageService.setString(
+        'zubix_custom_nearby',
+        jsonEncode(customNearby),
+      );
 
-      // 3. Active Brand ID
-      if (_currentBrandRegistrationId != null) {
-        LocalStorageService.setString('zubix_active_brand_id', _currentBrandRegistrationId!);
-      } else {
-        LocalStorageService.remove('zubix_active_brand_id');
-      }
-
-      // 4. Custom approved D2C Brands
-      final customBrands = _brands.where((b) => b.id.startsWith('reg_')).map((b) => b.toJson()).toList();
-      LocalStorageService.setString('zubix_custom_brands', jsonEncode(customBrands));
-
-      // 5. Custom approved Nearby Boutiques
-      final customNearby = _nearbyStores.where((b) => b.id.startsWith('reg_')).map((b) => b.toJson()).toList();
-      LocalStorageService.setString('zubix_custom_nearby', jsonEncode(customNearby));
-
-      // 6. Custom approved Sessions
-      final customSessions = _sessions.where((s) => s.id.startsWith('session_sr_')).map((s) => s.toJson()).toList();
-      LocalStorageService.setString('zubix_custom_sessions', jsonEncode(customSessions));
+      // 3. Custom approved Sessions
+      final customSessions = _sessions
+          .where((s) => s.id.startsWith('session_sr_'))
+          .map((s) => s.toJson())
+          .toList();
+      LocalStorageService.setString(
+        'zubix_custom_sessions',
+        jsonEncode(customSessions),
+      );
     } catch (e) {
       debugPrint('Error saving to local storage: $e');
     }
@@ -794,30 +776,11 @@ class AppState extends ChangeNotifier {
 
   void _loadFromStorage() {
     try {
-      final regRaw = LocalStorageService.getString('zubix_brand_registrations');
-      if (regRaw != null && regRaw.isNotEmpty) {
-        final list = (jsonDecode(regRaw) as List<dynamic>)
-            .map((item) => BrandRegistrationModel.fromJson(item as Map<String, dynamic>))
-            .toList();
-        _brandRegistrations.clear();
-        _brandRegistrations.addAll(list);
-      }
-
-      final activeId = LocalStorageService.getString('zubix_active_brand_id');
-      if (activeId != null && activeId.isNotEmpty && _brandRegistrations.any((r) => r.id == activeId)) {
-        _currentBrandRegistrationId = activeId;
-      } else {
-        _currentBrandRegistrationId = null;
-      }
-
-      final reqRaw = LocalStorageService.getString('zubix_session_requests');
-      if (reqRaw != null && reqRaw.isNotEmpty) {
-        final list = (jsonDecode(reqRaw) as List<dynamic>)
-            .map((item) => SessionRequestModel.fromJson(item as Map<String, dynamic>))
-            .toList();
-        _sessionRequests.clear();
-        _sessionRequests.addAll(list);
-      }
+      // Registrations, the active brand and requests live on the server now.
+      // Remove device copies left by earlier builds so they cannot be used to sign in.
+      LocalStorageService.remove('zubix_brand_registrations');
+      LocalStorageService.remove('zubix_active_brand_id');
+      LocalStorageService.remove('zubix_session_requests');
 
       final cbRaw = LocalStorageService.getString('zubix_custom_brands');
       if (cbRaw != null && cbRaw.isNotEmpty) {

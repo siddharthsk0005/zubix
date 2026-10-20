@@ -8,12 +8,12 @@ import '../widgets/swipable_gallery.dart';
 
 class NearbyScreen extends StatefulWidget {
   final AppState state;
-  final VoidCallback onNavigateToSessions;
+  final VoidCallback onSessionJoined;
 
   const NearbyScreen({
     super.key,
     required this.state,
-    required this.onNavigateToSessions,
+    required this.onSessionJoined,
   });
 
   @override
@@ -21,17 +21,26 @@ class NearbyScreen extends StatefulWidget {
 }
 
 class _NearbyScreenState extends State<NearbyScreen> {
-  String _selectedFilter = 'all'; // 'all', 'active_drop', 'cafe', 'fashion', 'beauty'
+  String _selectedFilter =
+      'all'; // 'all', 'active_drop', 'cafe', 'fashion', 'beauty'
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
   final List<Map<String, String>> _curatedLocations = [
-    {'name': 'Indiranagar, Bengaluru', 'city': 'Bengaluru', 'area': 'Indiranagar'},
+    {
+      'name': 'Indiranagar, Bengaluru',
+      'city': 'Bengaluru',
+      'area': 'Indiranagar',
+    },
     {'name': 'Bandra West, Mumbai', 'city': 'Mumbai', 'area': 'Bandra West'},
     {'name': 'C-Scheme, Jaipur', 'city': 'Jaipur', 'area': 'C-Scheme'},
     {'name': 'Hauz Khas Village, Delhi', 'city': 'Delhi', 'area': 'Hauz Khas'},
     {'name': 'Koregaon Park, Pune', 'city': 'Pune', 'area': 'Koregaon Park'},
-    {'name': 'Jubilee Hills, Hyderabad', 'city': 'Hyderabad', 'area': 'Jubilee Hills'},
+    {
+      'name': 'Jubilee Hills, Hyderabad',
+      'city': 'Hyderabad',
+      'area': 'Jubilee Hills',
+    },
   ];
 
   @override
@@ -40,7 +49,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
     super.dispose();
   }
 
-  Future<void> _launchMapDirections(String? mapUrl, String? address, String storeName) async {
+  Future<void> _launchMapDirections(
+    String? mapUrl,
+    String? address,
+    String storeName,
+  ) async {
     final query = Uri.encodeComponent('$storeName, ${address ?? ""}');
     final targetUrl = (mapUrl != null && mapUrl.isNotEmpty)
         ? mapUrl
@@ -150,7 +163,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(modalCtx),
-                          icon: const Icon(Icons.close, size: 20, color: AppTheme.pureBlack),
+                          icon: const Icon(
+                            Icons.close,
+                            size: 20,
+                            color: AppTheme.pureBlack,
+                          ),
                         ),
                       ],
                     ),
@@ -170,8 +187,15 @@ class _NearbyScreenState extends State<NearbyScreen> {
                         onChanged: (val) => setModalState(() {}),
                         decoration: InputDecoration(
                           hintText: 'Search city or neighbourhood...',
-                          hintStyle: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-                          prefixIcon: const Icon(Icons.search, size: 18, color: AppTheme.textSecondary),
+                          hintStyle: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textSecondary,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            size: 18,
+                            color: AppTheme.textSecondary,
+                          ),
                           suffixIcon: searchInputCtrl.text.isNotEmpty
                               ? IconButton(
                                   icon: const Icon(Icons.clear, size: 16),
@@ -182,7 +206,9 @@ class _NearbyScreenState extends State<NearbyScreen> {
                                 )
                               : null,
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                          ),
                         ),
                       ),
                     ),
@@ -197,7 +223,9 @@ class _NearbyScreenState extends State<NearbyScreen> {
                         Navigator.pop(modalCtx);
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Location updated: Indiranagar, Bengaluru (GPS verified)'),
+                            content: Text(
+                              'Location updated: Indiranagar, Bengaluru (GPS verified)',
+                            ),
                             behavior: SnackBarBehavior.floating,
                             duration: Duration(seconds: 2),
                           ),
@@ -212,7 +240,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.my_location, color: AppTheme.pureWhite, size: 18),
+                            Icon(
+                              Icons.my_location,
+                              color: AppTheme.pureWhite,
+                              size: 18,
+                            ),
                             SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -237,7 +269,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                                 ],
                               ),
                             ),
-                            Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 14),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.white70,
+                              size: 14,
+                            ),
                           ],
                         ),
                       ),
@@ -262,33 +298,47 @@ class _NearbyScreenState extends State<NearbyScreen> {
                   const SizedBox(height: 8),
                   Expanded(
                     child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
                       itemCount: filteredLocations.length,
-                      separatorBuilder: (c, i) => const Divider(height: 1, color: AppTheme.borderLight),
+                      separatorBuilder: (c, i) =>
+                          const Divider(height: 1, color: AppTheme.borderLight),
                       itemBuilder: (_, idx) {
                         final item = filteredLocations[idx];
-                        final isSelected = widget.state.selectedCity.toLowerCase().contains(item['city']!.toLowerCase());
+                        final isSelected = widget.state.selectedCity
+                            .toLowerCase()
+                            .contains(item['city']!.toLowerCase());
 
                         return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 4,
+                          ),
                           leading: Container(
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: isSelected ? AppTheme.pureBlack : AppTheme.surfaceLight,
+                              color: isSelected
+                                  ? AppTheme.pureBlack
+                                  : AppTheme.surfaceLight,
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
                               Icons.location_city,
                               size: 18,
-                              color: isSelected ? AppTheme.pureWhite : AppTheme.pureBlack,
+                              color: isSelected
+                                  ? AppTheme.pureWhite
+                                  : AppTheme.pureBlack,
                             ),
                           ),
                           title: Text(
                             item['name']!,
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
                               color: AppTheme.pureBlack,
                             ),
                           ),
@@ -296,18 +346,32 @@ class _NearbyScreenState extends State<NearbyScreen> {
                             'Active Drop Boutiques Available',
                             style: TextStyle(
                               fontSize: 11,
-                              color: isSelected ? AppTheme.pureBlack : AppTheme.textSecondary,
+                              color: isSelected
+                                  ? AppTheme.pureBlack
+                                  : AppTheme.textSecondary,
                             ),
                           ),
                           trailing: isSelected
-                              ? const Icon(Icons.check_circle, color: AppTheme.pureBlack, size: 20)
-                              : Icon(Icons.chevron_right, color: AppTheme.textTertiary.withValues(alpha: 0.6), size: 20),
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: AppTheme.pureBlack,
+                                  size: 20,
+                                )
+                              : Icon(
+                                  Icons.chevron_right,
+                                  color: AppTheme.textTertiary.withValues(
+                                    alpha: 0.6,
+                                  ),
+                                  size: 20,
+                                ),
                           onTap: () {
                             widget.state.setSelectedCity(item['name']!);
                             Navigator.pop(modalCtx);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('City changed to ${item["name"]}'),
+                                content: Text(
+                                  'City changed to ${item["name"]}',
+                                ),
                                 behavior: SnackBarBehavior.floating,
                                 duration: const Duration(seconds: 2),
                               ),
@@ -327,7 +391,8 @@ class _NearbyScreenState extends State<NearbyScreen> {
   }
 
   void _showStoreDetails(BrandModel store, SessionModel? session) {
-    final effectiveSession = session ?? widget.state.getActiveSessionForBrand(store.id);
+    final effectiveSession =
+        session ?? widget.state.getActiveSessionForBrand(store.id);
 
     showModalBottomSheet(
       context: context,
@@ -392,7 +457,10 @@ class _NearbyScreenState extends State<NearbyScreen> {
                         ),
                         if (store.distanceKm != null)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: AppTheme.pureBlack,
                               borderRadius: BorderRadius.circular(20),
@@ -426,7 +494,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.place_outlined, size: 20, color: AppTheme.pureBlack),
+                        const Icon(
+                          Icons.place_outlined,
+                          size: 20,
+                          color: AppTheme.pureBlack,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -444,7 +516,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        const Icon(Icons.access_time_outlined, size: 20, color: AppTheme.pureBlack),
+                        const Icon(
+                          Icons.access_time_outlined,
+                          size: 20,
+                          color: AppTheme.pureBlack,
+                        ),
                         const SizedBox(width: 12),
                         Text(
                           store.timings ?? '10:00 AM - 09:30 PM',
@@ -460,7 +536,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                     if (store.contactPhone.isNotEmpty)
                       Row(
                         children: [
-                          const Icon(Icons.phone_outlined, size: 20, color: AppTheme.pureBlack),
+                          const Icon(
+                            Icons.phone_outlined,
+                            size: 20,
+                            color: AppTheme.pureBlack,
+                          ),
                           const SizedBox(width: 12),
                           Text(
                             store.contactPhone,
@@ -473,7 +553,13 @@ class _NearbyScreenState extends State<NearbyScreen> {
                           const Spacer(),
                           TextButton(
                             onPressed: () => _callStore(store.contactPhone),
-                            child: const Text('CALL STORE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            child: const Text(
+                              'CALL STORE',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -509,13 +595,21 @@ class _NearbyScreenState extends State<NearbyScreen> {
                               store.address,
                               store.name,
                             ),
-                            icon: const Icon(Icons.navigation_outlined, size: 18),
+                            icon: const Icon(
+                              Icons.navigation_outlined,
+                              size: 18,
+                            ),
                             label: const Text('DIRECTIONS'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppTheme.pureBlack,
-                              side: const BorderSide(color: AppTheme.pureBlack, width: 1.5),
+                              side: const BorderSide(
+                                color: AppTheme.pureBlack,
+                                width: 1.5,
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
@@ -525,16 +619,27 @@ class _NearbyScreenState extends State<NearbyScreen> {
                             child: ElevatedButton.icon(
                               onPressed: () {
                                 Navigator.pop(ctx);
-                                widget.state.joinSession(effectiveSession, store);
-                                widget.onNavigateToSessions();
+                                widget.state.joinSession(
+                                  effectiveSession,
+                                  store,
+                                );
+                                widget.onSessionJoined();
                               },
-                              icon: const Icon(Icons.bolt, size: 18, color: AppTheme.pureWhite),
+                              icon: const Icon(
+                                Icons.bolt,
+                                size: 18,
+                                color: AppTheme.pureWhite,
+                              ),
                               label: const Text('JOIN SESSION'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.pureBlack,
                                 foregroundColor: AppTheme.pureWhite,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                             ),
                           ),
@@ -565,9 +670,18 @@ class _NearbyScreenState extends State<NearbyScreen> {
     }
 
     if (_selectedFilter == 'active_drop') {
-      list = list.where((s) => widget.state.getActiveSessionForBrand(s.id) != null).toList();
+      list = list
+          .where((s) => widget.state.getActiveSessionForBrand(s.id) != null)
+          .toList();
     } else if (_selectedFilter == 'cafe') {
-      list = list.where((s) => s.name.toLowerCase().contains('coffee') || s.name.toLowerCase().contains('cafe') || s.tagline.toLowerCase().contains('coffee')).toList();
+      list = list
+          .where(
+            (s) =>
+                s.name.toLowerCase().contains('coffee') ||
+                s.name.toLowerCase().contains('cafe') ||
+                s.tagline.toLowerCase().contains('coffee'),
+          )
+          .toList();
     } else if (_selectedFilter == 'fashion') {
       list = list.where((s) => s.categoryId == 'cat_fashion').toList();
     } else if (_selectedFilter == 'beauty') {
@@ -600,7 +714,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.near_me, size: 16, color: AppTheme.pureBlack),
+                    const Icon(
+                      Icons.near_me,
+                      size: 16,
+                      color: AppTheme.pureBlack,
+                    ),
                     const SizedBox(width: 8),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,7 +736,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Icon(Icons.keyboard_arrow_down, size: 16, color: AppTheme.pureBlack),
+                            const Icon(
+                              Icons.keyboard_arrow_down,
+                              size: 16,
+                              color: AppTheme.pureBlack,
+                            ),
                           ],
                         ),
                         const Text(
@@ -642,14 +764,25 @@ class _NearbyScreenState extends State<NearbyScreen> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.pureBlack),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.pureBlack,
+                        ),
                       )
-                    : const Icon(Icons.refresh, color: AppTheme.pureBlack, size: 20),
+                    : const Icon(
+                        Icons.refresh,
+                        color: AppTheme.pureBlack,
+                        size: 20,
+                      ),
                 onPressed: () => widget.state.fetchNearbyStores(),
               ),
               IconButton(
                 tooltip: 'Change City',
-                icon: const Icon(Icons.tune_outlined, color: AppTheme.pureBlack, size: 20),
+                icon: const Icon(
+                  Icons.tune_outlined,
+                  color: AppTheme.pureBlack,
+                  size: 20,
+                ),
                 onPressed: _showLocationPickerModal,
               ),
               const SizedBox(width: 8),
@@ -675,8 +808,15 @@ class _NearbyScreenState extends State<NearbyScreen> {
                       onChanged: (val) => setState(() => _searchQuery = val),
                       decoration: InputDecoration(
                         hintText: 'Search atelier, cafe or neighbourhood...',
-                        hintStyle: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-                        prefixIcon: const Icon(Icons.search, size: 18, color: AppTheme.textSecondary),
+                        hintStyle: const TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.textSecondary,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          size: 18,
+                          color: AppTheme.textSecondary,
+                        ),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear, size: 16),
@@ -687,7 +827,9 @@ class _NearbyScreenState extends State<NearbyScreen> {
                               )
                             : null,
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
                       ),
                     ),
                   ),
@@ -698,7 +840,10 @@ class _NearbyScreenState extends State<NearbyScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildFilterPill('all', 'All Boutiques (${widget.state.nearbyStores.length})'),
+                        _buildFilterPill(
+                          'all',
+                          'All Boutiques (${widget.state.nearbyStores.length})',
+                        ),
                         const SizedBox(width: 8),
                         _buildFilterPill('active_drop', '⚡ Active Drops Only'),
                         const SizedBox(width: 8),
@@ -725,7 +870,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.storefront_outlined, size: 48, color: AppTheme.textTertiary.withValues(alpha: 0.6)),
+                      Icon(
+                        Icons.storefront_outlined,
+                        size: 48,
+                        color: AppTheme.textTertiary.withValues(alpha: 0.6),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'No boutiques found in ${widget.state.selectedCity}',
@@ -740,20 +889,36 @@ class _NearbyScreenState extends State<NearbyScreen> {
                       const Text(
                         'Try switching to another city or explore all partner ateliers.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: () {
-                          widget.state.setSelectedCity('Indiranagar, Bengaluru');
+                          widget.state.setSelectedCity(
+                            'Indiranagar, Bengaluru',
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.pureBlack,
                           foregroundColor: AppTheme.pureWhite,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
                         ),
-                        child: const Text('SWITCH TO BENGALURU', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        child: const Text(
+                          'SWITCH TO BENGALURU',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -764,14 +929,13 @@ class _NearbyScreenState extends State<NearbyScreen> {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final store = stores[index];
-                    final session = widget.state.getActiveSessionForBrand(store.id);
-                    return _buildStoreCard(store, session);
-                  },
-                  childCount: stores.length,
-                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final store = stores[index];
+                  final session = widget.state.getActiveSessionForBrand(
+                    store.id,
+                  );
+                  return _buildStoreCard(store, session);
+                }, childCount: stores.length),
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
@@ -808,7 +972,8 @@ class _NearbyScreenState extends State<NearbyScreen> {
   }
 
   Widget _buildStoreCard(BrandModel store, SessionModel? session) {
-    final effectiveSession = session ?? widget.state.getActiveSessionForBrand(store.id);
+    final effectiveSession =
+        session ?? widget.state.getActiveSessionForBrand(store.id);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -842,19 +1007,30 @@ class _NearbyScreenState extends State<NearbyScreen> {
                   top: 10,
                   right: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.pureBlack.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.near_me, size: 12, color: AppTheme.pureWhite),
+                        const Icon(
+                          Icons.near_me,
+                          size: 12,
+                          color: AppTheme.pureWhite,
+                        ),
                         const SizedBox(width: 4),
                         Text(
-                          store.distanceKm != null ? '${store.distanceKm!.toStringAsFixed(1)} KM' : 'NEARBY',
+                          store.distanceKm != null
+                              ? '${store.distanceKm!.toStringAsFixed(1)} KM'
+                              : 'NEARBY',
                           style: const TextStyle(
                             color: AppTheme.pureWhite,
                             fontSize: 11,
@@ -871,7 +1047,10 @@ class _NearbyScreenState extends State<NearbyScreen> {
                   bottom: 10,
                   left: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(8),
@@ -947,14 +1126,21 @@ class _NearbyScreenState extends State<NearbyScreen> {
                 // Area / Address
                 Row(
                   children: [
-                    const Icon(Icons.place, size: 14, color: AppTheme.textSecondary),
+                    const Icon(
+                      Icons.place,
+                      size: 14,
+                      color: AppTheme.textSecondary,
+                    ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         store.address ?? '${store.area}, ${store.city}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
                     ),
                   ],
@@ -964,7 +1150,10 @@ class _NearbyScreenState extends State<NearbyScreen> {
                 // Generative Session Drop Banner with direct Join Button
                 if (effectiveSession != null) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.pureBlack,
                       borderRadius: BorderRadius.circular(14),
@@ -978,7 +1167,11 @@ class _NearbyScreenState extends State<NearbyScreen> {
                             color: Colors.white.withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.bolt, color: Colors.amber, size: 20),
+                          child: const Icon(
+                            Icons.bolt,
+                            color: Colors.amber,
+                            size: 20,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1023,9 +1216,13 @@ class _NearbyScreenState extends State<NearbyScreen> {
                         ElevatedButton.icon(
                           onPressed: () {
                             widget.state.joinSession(effectiveSession, store);
-                            widget.onNavigateToSessions();
+                            widget.onSessionJoined();
                           },
-                          icon: const Icon(Icons.bolt, size: 15, color: AppTheme.pureBlack),
+                          icon: const Icon(
+                            Icons.bolt,
+                            size: 15,
+                            color: AppTheme.pureBlack,
+                          ),
                           label: const Text(
                             'JOIN SESSION',
                             style: TextStyle(
@@ -1038,8 +1235,13 @@ class _NearbyScreenState extends State<NearbyScreen> {
                             backgroundColor: AppTheme.pureWhite,
                             foregroundColor: AppTheme.pureBlack,
                             elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
                       ],
@@ -1058,11 +1260,17 @@ class _NearbyScreenState extends State<NearbyScreen> {
                           foregroundColor: AppTheme.pureBlack,
                           side: const BorderSide(color: AppTheme.borderLight),
                           padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                         child: const Text(
                           'VIEW ATELIER',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                     ),
@@ -1077,14 +1285,20 @@ class _NearbyScreenState extends State<NearbyScreen> {
                         icon: const Icon(Icons.directions, size: 14),
                         label: const Text(
                           'DIRECTIONS',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.surfaceLight,
                           foregroundColor: AppTheme.pureBlack,
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
                     ),

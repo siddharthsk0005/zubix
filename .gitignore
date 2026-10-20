@@ -50,5 +50,6 @@ node_modules/
 .env
 **/.env
 .env.*
+backend/admin-credentials.env
 dist/
 **/dist/
