@@ -46,6 +46,10 @@ class AppState extends ChangeNotifier {
         _categories.clear();
         _categories.addAll(remoteCategories);
       }
+      final activeIds = categories.map((c) => c.id).toSet();
+      if (!activeIds.contains(_selectedCategoryId) && activeIds.isNotEmpty) {
+        _selectedCategoryId = categories.first.id;
+      }
 
       final remoteBrands = await ApiService.getBrands(approvedOnly: false);
       if (remoteBrands != null && remoteBrands.isNotEmpty) {
