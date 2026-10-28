@@ -31,6 +31,8 @@ class _BrandProfileEditDialogState extends State<BrandProfileEditDialog> {
   late final TextEditingController _contactPhone;
   late final TextEditingController _website;
   late final TextEditingController _instagram;
+  // YouTube, LinkedIn, Facebook, Call and WhatsApp, keyed like the backend's socialLinks.
+  late final Map<String, TextEditingController> _links;
   late final TextEditingController _description;
   late final TextEditingController _city;
   late final TextEditingController _area;
@@ -44,6 +46,10 @@ class _BrandProfileEditDialogState extends State<BrandProfileEditDialog> {
   String? _error;
 
   bool get _isStore => _brandType == 'local_store';
+  // Local stores pick a Nearby category; online brands pick a Brand category.
+  List<CategoryModel> get _scopedCategories => _categories
+      .where((c) => c.scope == (_isStore ? 'nearby' : 'brand'))
+      .toList();
 
   @override
   void initState() {
@@ -55,6 +61,10 @@ class _BrandProfileEditDialogState extends State<BrandProfileEditDialog> {
     _contactPhone = TextEditingController(text: b.ownerPhone);
     _website = TextEditingController(text: b.websiteUrl ?? '');
     _instagram = TextEditingController(text: b.instagramUrl ?? '');
+    _links = {
+      for (final key in ['youtube', 'linkedin', 'facebook', 'call', 'whatsapp'])
+        key: TextEditingController(text: b.socialLinks[key] ?? ''),
+    };
     _description = TextEditingController(text: b.description ?? '');
     _city = TextEditingController(text: b.city ?? '');
     _area = TextEditingController(text: b.area ?? '');
@@ -83,6 +93,7 @@ class _BrandProfileEditDialogState extends State<BrandProfileEditDialog> {
       _contactPhone,
       _website,
       _instagram,
+      ..._links.values,
       _description,
       _city,
       _area,
@@ -102,7 +113,9 @@ class _BrandProfileEditDialogState extends State<BrandProfileEditDialog> {
       return 'Enter a valid contact email.';
     }
     if (_contactPhone.text.trim().isEmpty) return 'Contact phone is required.';
-    if (_categoryId == null) return 'Select a category.';
+    if (_categoryId == null || !_scopedCategories.any((c) => c.id == _categoryId)) {
+      return 'Select a category.';
+    }
     if (_isStore && (_city.text.trim().isEmpty || _address.text.trim().isEmpty)) {
       return 'City and address are required for a physical store.';
     }
@@ -129,6 +142,9 @@ class _BrandProfileEditDialogState extends State<BrandProfileEditDialog> {
         'categoryId': _categoryId,
         'websiteUrl': _website.text.trim(),
         'instagramUrl': _instagram.text.trim(),
+        'socialLinks': {
+          for (final entry in _links.entries) entry.key: entry.value.text.trim(),
+        },
         'description': _description.text.trim(),
         'city': _isStore ? _city.text.trim() : '',
         'area': _isStore ? _area.text.trim() : '',
@@ -178,14 +194,14 @@ class _BrandProfileEditDialogState extends State<BrandProfileEditDialog> {
               ),
               _field(_contactPhone, 'Contact phone', type: TextInputType.phone),
               DropdownButtonFormField<String>(
-                initialValue: _categories.any((c) => c.id == _categoryId)
+                initialValue: _scopedCategories.any((c) => c.id == _categoryId)
                     ? _categoryId
                     : null,
                 decoration: InputDecoration(
                   labelText: 'Category',
                   helperText: _loadingCategories ? 'Loading categories…' : null,
                 ),
-                items: _categories
+                items: _scopedCategories
                     .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
                     .toList(),
                 onChanged: (v) => setState(() => _categoryId = v),
@@ -203,6 +219,11 @@ class _BrandProfileEditDialogState extends State<BrandProfileEditDialog> {
               const SizedBox(height: 12),
               _field(_website, 'Website (optional)', type: TextInputType.url),
               _field(_instagram, 'Instagram URL (optional)', type: TextInputType.url),
+              _field(_links['youtube']!, 'YouTube URL (optional)', type: TextInputType.url),
+              _field(_links['linkedin']!, 'LinkedIn URL (optional)', type: TextInputType.url),
+              _field(_links['facebook']!, 'Facebook URL (optional)', type: TextInputType.url),
+              _field(_links['call']!, 'Call number (optional)', type: TextInputType.phone),
+              _field(_links['whatsapp']!, 'WhatsApp number (optional)', type: TextInputType.phone),
               _field(_description, 'About / bio', maxLines: 3),
               if (_isStore) ...[
                 _field(_city, 'City'),

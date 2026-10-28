@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../models/brand_media_model.dart';
 import '../models/category_model.dart';
 import '../models/brand_model.dart';
 import '../models/session_model.dart';
@@ -475,10 +476,11 @@ class ApiService {
   }
 
   // ---------------- CATEGORIES (Supabase CRUD) ----------------
-  static Future<List<CategoryModel>?> getCategories() async {
+  static Future<List<CategoryModel>?> getCategories({String? scope}) async {
     try {
+      final query = scope == null ? '' : '?scope=$scope';
       final res = await http
-          .get(Uri.parse('$baseUrl/api/categories'))
+          .get(Uri.parse('$baseUrl/api/categories$query'))
           .timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final List<dynamic> data = jsonDecode(res.body);
@@ -493,13 +495,14 @@ class ApiService {
   static Future<CategoryModel?> createCategory(
     String name, {
     String iconName = 'category',
+    String scope = 'brand',
   }) async {
     try {
       final res = await http
           .post(
             Uri.parse('$baseUrl/api/categories'),
             headers: _adminHeaders,
-            body: jsonEncode({'name': name, 'iconName': iconName}),
+            body: jsonEncode({'name': name, 'iconName': iconName, 'scope': scope}),
           )
           .timeout(const Duration(seconds: 4));
       if (res.statusCode == 201) {
@@ -513,6 +516,7 @@ class ApiService {
     String id, {
     String? name,
     bool? isActive,
+    String? scope,
   }) async {
     try {
       final res = await http
@@ -522,6 +526,7 @@ class ApiService {
             body: jsonEncode({
               if (name case final n?) 'name': n,
               if (isActive case final a?) 'isActive': a,
+              if (scope case final s?) 'scope': s,
             }),
           )
           .timeout(const Duration(seconds: 4));
@@ -645,6 +650,136 @@ class ApiService {
       return res.statusCode == 200;
     } catch (_) {
       return false;
+    }
+  }
+
+  // Brand logo: one image shown on the brand card and wherever the brand appears.
+  static Future<String> uploadBrandLogo(
+    String brandId, {
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/brands/$brandId/logo'),
+            headers: _brandOrAdminHeaders,
+            body: jsonEncode({
+              'mimeType': mimeType,
+              'dataBase64': base64Encode(bytes),
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
+      if (res.statusCode == 200) {
+        return (jsonDecode(res.body) as Map<String, dynamic>)['logoUrl'] as String? ?? '';
+      }
+      throw Exception(_errorFrom(res.body) ?? 'Could not upload the logo.');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Could not reach the server.');
+    }
+  }
+
+  static Future<void> removeBrandLogo(String brandId) async {
+    try {
+      final res = await http
+          .delete(
+            Uri.parse('$baseUrl/api/brands/$brandId/logo'),
+            headers: _brandOrAdminHeaders,
+          )
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) return;
+      throw Exception(_errorFrom(res.body) ?? 'Could not remove the logo.');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Could not reach the server.');
+    }
+  }
+
+  // Brand media: ordered images/videos shown to customers on the Brands page.
+  static Future<List<BrandMediaItem>> getBrandMedia(String brandId) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/brands/$brandId/media'))
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        return (jsonDecode(res.body) as List<dynamic>)
+            .map((e) => BrandMediaItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      throw Exception(_errorFrom(res.body) ?? 'Could not load brand media.');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Could not reach the server.');
+    }
+  }
+
+  static Future<BrandMediaItem> uploadBrandMedia(
+    String brandId, {
+    required String fileName,
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/brands/$brandId/media'),
+            headers: _brandOrAdminHeaders,
+            body: jsonEncode({
+              'fileName': fileName,
+              'mimeType': mimeType,
+              'dataBase64': base64Encode(bytes),
+            }),
+          )
+          .timeout(const Duration(seconds: 120));
+      if (res.statusCode == 201) {
+        return BrandMediaItem.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+      }
+      throw Exception(_errorFrom(res.body) ?? 'Upload failed.');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Could not reach the server.');
+    }
+  }
+
+  // [orderedIds] must contain every media id of the brand exactly once.
+  static Future<List<BrandMediaItem>> reorderBrandMedia(
+    String brandId,
+    List<String> orderedIds,
+  ) async {
+    try {
+      final res = await http
+          .put(
+            Uri.parse('$baseUrl/api/brands/$brandId/media/order'),
+            headers: _brandOrAdminHeaders,
+            body: jsonEncode({'ids': orderedIds}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        return (jsonDecode(res.body) as List<dynamic>)
+            .map((e) => BrandMediaItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      throw Exception(_errorFrom(res.body) ?? 'Could not save the new order.');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Could not reach the server.');
+    }
+  }
+
+  static Future<void> deleteBrandMedia(String brandId, String mediaId) async {
+    try {
+      final res = await http
+          .delete(
+            Uri.parse('$baseUrl/api/brands/$brandId/media/$mediaId'),
+            headers: _brandOrAdminHeaders,
+          )
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) return;
+      throw Exception(_errorFrom(res.body) ?? 'Could not delete the file.');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Could not reach the server.');
     }
   }
 

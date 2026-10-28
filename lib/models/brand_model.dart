@@ -1,3 +1,5 @@
+import 'brand_media_model.dart';
+
 class BrandModel {
   final String id;
   String name;
@@ -5,6 +7,7 @@ class BrandModel {
   String bio;
   String logoUrl;
   List<String> showcaseImages;
+  List<BrandMediaItem> media; // ordered uploads from the brand; shown on the Brands page
   String websiteUrl;
   Map<String, String> socialLinks;
   String contactEmail;
@@ -31,6 +34,7 @@ class BrandModel {
     required this.bio,
     required this.logoUrl,
     required this.showcaseImages,
+    this.media = const [],
     required this.websiteUrl,
     required this.socialLinks,
     required this.contactEmail,
@@ -58,6 +62,7 @@ class BrandModel {
     String? bio,
     String? logoUrl,
     List<String>? showcaseImages,
+    List<BrandMediaItem>? media,
     String? websiteUrl,
     Map<String, String>? socialLinks,
     String? contactEmail,
@@ -84,6 +89,7 @@ class BrandModel {
       bio: bio ?? this.bio,
       logoUrl: logoUrl ?? this.logoUrl,
       showcaseImages: showcaseImages ?? this.showcaseImages,
+      media: media ?? this.media,
       websiteUrl: websiteUrl ?? this.websiteUrl,
       socialLinks: socialLinks ?? this.socialLinks,
       contactEmail: contactEmail ?? this.contactEmail,
@@ -112,6 +118,7 @@ class BrandModel {
     'bio': bio,
     'logoUrl': logoUrl,
     'showcaseImages': showcaseImages,
+    'media': media.map((m) => m.toJson()).toList(),
     'websiteUrl': websiteUrl,
     'socialLinks': socialLinks,
     'contactEmail': contactEmail,
@@ -140,6 +147,10 @@ class BrandModel {
       bio: json['bio'] as String? ?? '',
       logoUrl: json['logoUrl'] as String? ?? '',
       showcaseImages: (json['showcaseImages'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      media: (json['media'] as List<dynamic>?)
+              ?.map((e) => BrandMediaItem.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       websiteUrl: json['websiteUrl'] as String? ?? '',
       socialLinks: (json['socialLinks'] as Map<String, dynamic>?)?.map((k, v) => MapEntry(k, v.toString())) ?? {},
       contactEmail: json['contactEmail'] as String? ?? '',

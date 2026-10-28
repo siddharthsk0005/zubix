@@ -8,6 +8,7 @@ import '../models/session_model.dart';
 import '../models/session_request_model.dart';
 import '../models/voucher_model.dart';
 import '../services/api_service.dart';
+import '../services/location_service.dart';
 import '../services/storage/storage_service.dart';
 
 enum AppRole { consumer, admin, brand }
@@ -50,6 +51,10 @@ class AppState extends ChangeNotifier {
       if (!activeIds.contains(_selectedCategoryId) && activeIds.isNotEmpty) {
         _selectedCategoryId = categories.first.id;
       }
+      final nearbyIds = nearbyCategories.map((c) => c.id).toSet();
+      if (!nearbyIds.contains(_selectedNearbyCategoryId) && nearbyIds.isNotEmpty) {
+        _selectedNearbyCategoryId = nearbyCategories.first.id;
+      }
 
       final remoteBrands = await ApiService.getBrands(approvedOnly: false);
       if (remoteBrands != null && remoteBrands.isNotEmpty) {
@@ -84,7 +89,9 @@ class AppState extends ChangeNotifier {
   String get selectedCity => _selectedCity;
 
   final List<BrandModel> _nearbyStores = [];
-  List<BrandModel> get nearbyStores => _nearbyStores;
+  // Only offline stores registered as 'local_store' belong on Nearby.
+  List<BrandModel> get nearbyStores =>
+      _nearbyStores.where((b) => b.storeType == 'local_store').toList();
 
   bool _isLoadingNearby = false;
   bool get isLoadingNearby => _isLoadingNearby;
@@ -93,6 +100,30 @@ class AppState extends ChangeNotifier {
     if (_selectedCity == city.trim()) return;
     _selectedCity = city.trim();
     fetchNearbyStores();
+  }
+
+  bool _isLocating = false;
+  bool get isLocating => _isLocating;
+
+  String? _locationError;
+  String? get locationError => _locationError;
+
+  Future<void> detectCurrentLocation() async {
+    if (_isLocating) return;
+    _isLocating = true;
+    _locationError = null;
+    notifyListeners();
+    try {
+      final label = await LocationService.getCurrentPlaceLabel();
+      setSelectedCity(label);
+    } on LocationException catch (e) {
+      _locationError = e.message;
+    } catch (_) {
+      _locationError = 'Could not get your location.';
+    } finally {
+      _isLocating = false;
+      notifyListeners();
+    }
   }
 
   Future<void> fetchNearbyStores() async {
@@ -122,19 +153,44 @@ class AppState extends ChangeNotifier {
   // ----------------------------------------------------
   final List<CategoryModel> _categories = [];
 
-  List<CategoryModel> get categories =>
-      _categories.where((c) => c.isActive).toList();
+  // Brand categories (scope 'brand') drive the Brands tab and registration.
+  List<CategoryModel> get categories => _categories
+      .where((c) => c.isActive && c.scope == 'brand')
+      .toList();
+  // Nearby categories (scope 'nearby') drive the Nearby tab.
+  List<CategoryModel> get nearbyCategories => _categories
+      .where((c) => c.isActive && c.scope == 'nearby')
+      .toList();
   List<CategoryModel> get allCategories => _categories;
+
+  String? categoryNameFor(String categoryId) {
+    for (final c in _categories) {
+      if (c.id == categoryId) return c.name;
+    }
+    return null;
+  }
 
   String _selectedCategoryId = '';
   String get selectedCategoryId => _selectedCategoryId;
+
+  String _selectedNearbyCategoryId = '';
+  String get selectedNearbyCategoryId => _selectedNearbyCategoryId;
 
   void selectCategory(String id) {
     _selectedCategoryId = id;
     notifyListeners();
   }
 
-  Future<void> addCategory(String name, {String iconName = 'category'}) async {
+  void selectNearbyCategory(String id) {
+    _selectedNearbyCategoryId = id;
+    notifyListeners();
+  }
+
+  Future<void> addCategory(
+    String name, {
+    String iconName = 'category',
+    String scope = 'brand',
+  }) async {
     final tempId = 'cat_${DateTime.now().millisecondsSinceEpoch}';
     final slug = name.toLowerCase().replaceAll(' ', '-').replaceAll('&', 'and');
     final localCat = CategoryModel(
@@ -143,12 +199,17 @@ class AppState extends ChangeNotifier {
       slug: slug,
       iconName: iconName,
       displayOrder: _categories.length + 1,
+      scope: scope,
     );
     _categories.add(localCat);
     notifyListeners();
 
     try {
-      final created = await ApiService.createCategory(name, iconName: iconName);
+      final created = await ApiService.createCategory(
+        name,
+        iconName: iconName,
+        scope: scope,
+      );
       if (created != null) {
         final idx = _categories.indexWhere((c) => c.id == tempId);
         if (idx != -1) {
@@ -163,6 +224,7 @@ class AppState extends ChangeNotifier {
     String id,
     String newName, {
     bool? isActive,
+    String? scope,
   }) async {
     final index = _categories.indexWhere((c) => c.id == id);
     if (index != -1) {
@@ -170,18 +232,29 @@ class AppState extends ChangeNotifier {
       if (isActive != null) {
         _categories[index].isActive = isActive;
       }
+      if (scope != null) {
+        _categories[index].scope = scope;
+      }
       notifyListeners();
 
       try {
-        await ApiService.updateCategory(id, name: newName, isActive: isActive);
+        await ApiService.updateCategory(
+          id,
+          name: newName,
+          isActive: isActive,
+          scope: scope,
+        );
       } catch (_) {}
     }
   }
 
   Future<void> removeCategory(String id) async {
     _categories.removeWhere((c) => c.id == id);
-    if (_selectedCategoryId == id && _categories.isNotEmpty) {
-      _selectedCategoryId = _categories.first.id;
+    if (_selectedCategoryId == id && categories.isNotEmpty) {
+      _selectedCategoryId = categories.first.id;
+    }
+    if (_selectedNearbyCategoryId == id && nearbyCategories.isNotEmpty) {
+      _selectedNearbyCategoryId = nearbyCategories.first.id;
     }
     notifyListeners();
 
@@ -200,7 +273,12 @@ class AppState extends ChangeNotifier {
       _brands.where((b) => b.isApproved).toList();
 
   List<BrandModel> getBrandsForCategory(String catId) {
-    return _brands.where((b) => b.categoryId == catId && b.isApproved).toList();
+    return _brands
+        .where((b) =>
+            b.categoryId == catId &&
+            b.isApproved &&
+            b.storeType == 'online_d2c')
+        .toList();
   }
 
   Future<void> addBrand(BrandModel brand) async {
@@ -238,9 +316,11 @@ class AppState extends ChangeNotifier {
     }
 
     final nIdx = _nearbyStores.indexWhere((b) => b.id == brand.id);
-    if (nIdx != -1) {
+    if (brand.storeType != 'local_store') {
+      if (nIdx != -1) _nearbyStores.removeAt(nIdx);
+    } else if (nIdx != -1) {
       _nearbyStores[nIdx] = brand;
-    } else if (brand.isPhysicalStore) {
+    } else {
       _nearbyStores.add(brand);
     }
     notifyListeners();

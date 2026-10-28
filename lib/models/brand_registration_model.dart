@@ -9,6 +9,8 @@ class BrandRegistrationModel {
   String brandType; // 'online_d2c' or 'local_store'
   String? websiteUrl;
   String? instagramUrl;
+  // Channel links keyed by: instagram, youtube, linkedin, facebook, call, whatsapp
+  Map<String, String> socialLinks;
   String? description;
   String categoryId;
   // Physical store fields (only if local_store)
@@ -34,6 +36,7 @@ class BrandRegistrationModel {
     required this.categoryId,
     this.websiteUrl,
     this.instagramUrl,
+    Map<String, String>? socialLinks,
     this.description,
     this.city,
     this.area,
@@ -45,7 +48,8 @@ class BrandRegistrationModel {
     DateTime? appliedAt,
     this.reviewedAt,
     this.reviewedBy,
-  }) : appliedAt = appliedAt ?? DateTime.now();
+  }) : socialLinks = socialLinks ?? {},
+       appliedAt = appliedAt ?? DateTime.now();
 
   BrandRegistrationModel copyWith({
     String? id,
@@ -57,6 +61,7 @@ class BrandRegistrationModel {
     String? categoryId,
     String? websiteUrl,
     String? instagramUrl,
+    Map<String, String>? socialLinks,
     String? description,
     String? city,
     String? area,
@@ -79,6 +84,7 @@ class BrandRegistrationModel {
       categoryId: categoryId ?? this.categoryId,
       websiteUrl: websiteUrl ?? this.websiteUrl,
       instagramUrl: instagramUrl ?? this.instagramUrl,
+      socialLinks: socialLinks ?? this.socialLinks,
       description: description ?? this.description,
       city: city ?? this.city,
       area: area ?? this.area,
@@ -103,6 +109,7 @@ class BrandRegistrationModel {
     'categoryId': categoryId,
     'websiteUrl': websiteUrl,
     'instagramUrl': instagramUrl,
+    'socialLinks': socialLinks,
     'description': description,
     'city': city,
     'area': area,
@@ -127,6 +134,9 @@ class BrandRegistrationModel {
       categoryId: json['categoryId'] as String? ?? '',
       websiteUrl: json['websiteUrl'] as String?,
       instagramUrl: json['instagramUrl'] as String?,
+      socialLinks: (json['socialLinks'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, v.toString()),
+      ),
       description: json['description'] as String?,
       city: json['city'] as String?,
       area: json['area'] as String?,

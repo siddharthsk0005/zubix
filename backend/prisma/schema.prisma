@@ -15,6 +15,7 @@ model Category {
   iconName     String   @default("category")
   displayOrder Int      @default(0)
   isActive     Boolean  @default(true)
+  scope        String   @default("brand") // "brand" or "nearby"
   metadata     Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -47,8 +48,25 @@ model Brand {
   category         Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   sessions         Session[]
   vouchers         VoucherClaim[]
+  media            BrandMedia[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+}
+
+// Ordered images/videos a brand uploads. Customers see them in `position` order on the Brands page.
+model BrandMedia {
+  id          String   @id @default(uuid())
+  brandId     String
+  brand       Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  kind        String   // "image" or "video"
+  url         String
+  storagePath String
+  mimeType    String
+  sizeBytes   Int
+  position    Int
+  createdAt   DateTime @default(now())
+
+  @@index([brandId, position])
 }
 
 model Session {
@@ -96,6 +114,7 @@ model BrandRegistration {
   brandType       String    @default("online_d2c") // "online_d2c" or "local_store"
   websiteUrl      String?
   instagramUrl    String?
+  socialLinks     Json      @default("{}") // keys: instagram, youtube, linkedin, facebook, call, whatsapp
   description     String?
   categoryId      String
   city            String?

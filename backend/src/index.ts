@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient, BrandRegistration } from '@prisma/client';
-import { randomInt } from 'crypto';
+import { randomInt, randomUUID } from 'crypto';
 import { hashPassword, verifyPassword } from './password';
 import { issueAdminToken, issueBrandToken, issueUserToken, requireAdmin, requireBrand, requireBrandOrAdmin, requireCustomer } from './admin-auth';
 
@@ -13,7 +13,7 @@ const port = process.env.PORT || 4000;
 const prisma = new PrismaClient();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '30mb' })); // brand media is sent as base64 (20 MB video ≈ 27 MB body)
 
 // Health Check
 app.get('/health', async (_req: Request, res: Response) => {
@@ -500,9 +500,13 @@ app.post('/api/brand/login', async (req: Request, res: Response) => {
 // ----------------------------------------------------
 // 1. CATEGORIES API (Live Supabase)
 // ----------------------------------------------------
-app.get('/api/categories', async (_req: Request, res: Response) => {
+const CATEGORY_SCOPES = ['brand', 'nearby'];
+
+app.get('/api/categories', async (req: Request, res: Response) => {
   try {
+    const scope = req.query.scope ? String(req.query.scope) : undefined;
     const categories = await prisma.category.findMany({
+      where: scope ? { scope } : undefined,
       orderBy: { displayOrder: 'asc' },
     });
     res.json(categories);
@@ -513,8 +517,11 @@ app.get('/api/categories', async (_req: Request, res: Response) => {
 
 app.post('/api/categories', requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { name, iconName = 'category' } = req.body;
+    const { name, iconName = 'category', scope = 'brand' } = req.body;
     if (!name) return res.status(400).json({ error: 'Category name is required' });
+    if (!CATEGORY_SCOPES.includes(scope)) {
+      return res.status(400).json({ error: "scope must be 'brand' or 'nearby'" });
+    }
 
     const total = await prisma.category.count();
     const slug = name.toLowerCase().replace(/\s+/g, '-');
@@ -524,6 +531,7 @@ app.post('/api/categories', requireAdmin, async (req: Request, res: Response) =>
         name,
         slug,
         iconName,
+        scope,
         displayOrder: total + 1,
         isActive: true,
       },
@@ -537,13 +545,17 @@ app.post('/api/categories', requireAdmin, async (req: Request, res: Response) =>
 app.put('/api/categories/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { name, isActive } = req.body;
+    const { name, isActive, scope } = req.body;
+    if (scope !== undefined && !CATEGORY_SCOPES.includes(scope)) {
+      return res.status(400).json({ error: "scope must be 'brand' or 'nearby'" });
+    }
 
     const updated = await prisma.category.update({
       where: { id },
       data: {
         ...(name !== undefined && { name }),
         ...(isActive !== undefined && { isActive }),
+        ...(scope !== undefined && { scope }),
       },
     });
     res.json(updated);
@@ -590,7 +602,7 @@ app.get('/api/brands/nearby', async (req: Request, res: Response) => {
 
     let stores = await prisma.brand.findMany({
       where: {
-        isPhysicalStore: true,
+        storeType: 'local_store',
         isApproved: true,
       },
       include: {
@@ -636,6 +648,9 @@ app.get('/api/brands', async (req: Request, res: Response) => {
         category: true,
         sessions: {
           where: { status: 'active' },
+        },
+        media: {
+          orderBy: { position: 'asc' },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -741,6 +756,17 @@ app.put('/api/brands/:id/profile', requireBrandOrAdmin, async (req: Request, res
     const address = optional(body.address);
     const operatingHours = optional(body.operatingHours);
 
+    // Replace with the submitted map when provided; otherwise keep the saved channels. Instagram is also accepted on its own.
+    let socialLinksValue: Record<string, string> | undefined;
+    if (body.socialLinks !== undefined || instagramUrl !== undefined) {
+      const current = await prisma.brand.findUnique({ where: { id }, select: { socialLinks: true } });
+      socialLinksValue = cleanSocialLinks(body.socialLinks !== undefined ? body.socialLinks : current?.socialLinks);
+      if (instagramUrl !== undefined) {
+        if (instagramUrl) socialLinksValue.instagram = instagramUrl;
+        else delete socialLinksValue.instagram;
+      }
+    }
+
     const registrationData = {
       ...(brandName !== undefined && { brandName }),
       ...(ownerName && { ownerName }),
@@ -749,6 +775,7 @@ app.put('/api/brands/:id/profile', requireBrandOrAdmin, async (req: Request, res
       ...(brandType !== undefined && { brandType }),
       ...(websiteUrl !== undefined && { websiteUrl: websiteUrl || null }),
       ...(instagramUrl !== undefined && { instagramUrl: instagramUrl || null }),
+      ...(socialLinksValue !== undefined && { socialLinks: socialLinksValue }),
       ...(description !== undefined && { description: description || null }),
       ...(categoryId !== undefined && { categoryId }),
       ...(city !== undefined && { city }),
@@ -763,7 +790,7 @@ app.put('/api/brands/:id/profile', requireBrandOrAdmin, async (req: Request, res
       ...(contactPhone !== undefined && { contactPhone }),
       ...(brandType !== undefined && { storeType: brandType, isPhysicalStore: brandType === 'local_store' }),
       ...(websiteUrl !== undefined && { websiteUrl }),
-      ...(instagramUrl !== undefined && { socialLinks: { instagram: instagramUrl } }),
+      ...(socialLinksValue !== undefined && { socialLinks: socialLinksValue }),
       ...(description !== undefined && { bio: description }),
       ...(categoryId !== undefined && { categoryId }),
       ...(city !== undefined && { city }),
@@ -781,6 +808,236 @@ app.put('/api/brands/:id/profile', requireBrandOrAdmin, async (req: Request, res
     if (!registration && !brand) return res.status(404).json({ error: 'Brand not found' });
 
     res.json({ success: true, registration: registration ? toPublicRegistration(registration) : null, brand });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Brand media: ordered images/videos stored in a public Supabase Storage bucket.
+const MEDIA_BUCKET = 'brand-media';
+const MB = 1024 * 1024;
+const MEDIA_TYPES: Record<string, { kind: 'image' | 'video'; maxBytes: number; ext: string }> = {
+  'image/jpeg': { kind: 'image', maxBytes: 5 * MB, ext: 'jpg' },
+  'image/png': { kind: 'image', maxBytes: 5 * MB, ext: 'png' },
+  'image/webp': { kind: 'image', maxBytes: 5 * MB, ext: 'webp' },
+  'video/mp4': { kind: 'video', maxBytes: 20 * MB, ext: 'mp4' },
+  'video/quicktime': { kind: 'video', maxBytes: 20 * MB, ext: 'mov' },
+  'video/webm': { kind: 'video', maxBytes: 20 * MB, ext: 'webm' },
+};
+
+function storageConfig() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Storage is not configured: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env');
+  }
+  return { baseUrl: url.replace(/\/$/, ''), key };
+}
+
+async function uploadMediaFile(path: string, bytes: Buffer, mimeType: string): Promise<string> {
+  const { baseUrl, key } = storageConfig();
+  const res = await fetch(`${baseUrl}/storage/v1/object/${MEDIA_BUCKET}/${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, apikey: key, 'Content-Type': mimeType, 'x-upsert': 'false' },
+    body: new Uint8Array(bytes),
+  });
+  if (!res.ok) throw new Error(`Storage upload failed (${res.status}): ${await res.text()}`);
+  return `${baseUrl}/storage/v1/object/public/${MEDIA_BUCKET}/${path}`;
+}
+
+async function removeMediaFile(path: string): Promise<void> {
+  const { baseUrl, key } = storageConfig();
+  const res = await fetch(`${baseUrl}/storage/v1/object/${MEDIA_BUCKET}/${path}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${key}`, apikey: key },
+  });
+  if (!res.ok && res.status !== 404) throw new Error(`Storage delete failed (${res.status})`);
+}
+
+app.get('/api/brands/:id/media', async (req: Request, res: Response) => {
+  try {
+    const media = await prisma.brandMedia.findMany({
+      where: { brandId: String(req.params.id) },
+      orderBy: { position: 'asc' },
+    });
+    res.json(media);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/brands/:id/media', requireBrandOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    if (!res.locals.isAdmin && res.locals.brandId !== id) {
+      return res.status(403).json({ error: 'You can only upload media for your own brand' });
+    }
+    const { mimeType, dataBase64 } = req.body || {};
+    const spec = MEDIA_TYPES[String(mimeType)];
+    if (!spec) {
+      return res.status(400).json({ error: 'Unsupported file type. Use JPG, PNG, WEBP, MP4, MOV or WEBM.' });
+    }
+    if (typeof dataBase64 !== 'string' || !dataBase64) {
+      return res.status(400).json({ error: 'File data is missing' });
+    }
+    const bytes = Buffer.from(dataBase64, 'base64');
+    if (bytes.length === 0) {
+      return res.status(400).json({ error: 'File data is empty' });
+    }
+    if (bytes.length > spec.maxBytes) {
+      const limit = spec.kind === 'image' ? '5 MB' : '20 MB';
+      return res.status(413).json({ error: `${spec.kind === 'image' ? 'Images' : 'Videos'} must be ${limit} or smaller` });
+    }
+    const brand = await prisma.brand.findUnique({ where: { id }, select: { id: true } });
+    if (!brand) return res.status(404).json({ error: 'Brand not found' });
+
+    const path = `${id}/${randomUUID()}.${spec.ext}`;
+    const publicUrl = await uploadMediaFile(path, bytes, String(mimeType));
+    try {
+      const created = await prisma.$transaction(async (tx) => {
+        const last = await tx.brandMedia.aggregate({ where: { brandId: id }, _max: { position: true } });
+        return tx.brandMedia.create({
+          data: {
+            brandId: id,
+            kind: spec.kind,
+            url: publicUrl,
+            storagePath: path,
+            mimeType: String(mimeType),
+            sizeBytes: bytes.length,
+            position: (last._max.position ?? -1) + 1,
+          },
+        });
+      });
+      res.status(201).json(created);
+    } catch (error) {
+      await removeMediaFile(path).catch(() => undefined);
+      throw error;
+    }
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/brands/:id/media/order', requireBrandOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    if (!res.locals.isAdmin && res.locals.brandId !== id) {
+      return res.status(403).json({ error: 'You can only reorder your own brand media' });
+    }
+    const ids = req.body?.ids;
+    const existing = await prisma.brandMedia.findMany({ where: { brandId: id }, select: { id: true } });
+    const existingIds = new Set(existing.map((item) => item.id));
+    const valid =
+      Array.isArray(ids) &&
+      ids.length === existingIds.size &&
+      new Set(ids).size === ids.length &&
+      ids.every((item) => typeof item === 'string' && existingIds.has(item));
+    if (!valid) {
+      return res.status(400).json({ error: 'ids must list every media item of this brand exactly once' });
+    }
+    await prisma.$transaction(
+      ids.map((mediaId: string, index: number) =>
+        prisma.brandMedia.update({ where: { id: mediaId }, data: { position: index } }),
+      ),
+    );
+    const media = await prisma.brandMedia.findMany({ where: { brandId: id }, orderBy: { position: 'asc' } });
+    res.json(media);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/brands/:id/media/:mediaId', requireBrandOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    if (!res.locals.isAdmin && res.locals.brandId !== id) {
+      return res.status(403).json({ error: 'You can only delete your own brand media' });
+    }
+    const item = await prisma.brandMedia.findFirst({ where: { id: String(req.params.mediaId), brandId: id } });
+    if (!item) return res.status(404).json({ error: 'Media not found' });
+
+    await prisma.brandMedia.delete({ where: { id: item.id } });
+    await removeMediaFile(item.storagePath).catch((error) => console.warn('Could not remove media file:', error.message));
+
+    const remaining = await prisma.brandMedia.findMany({ where: { brandId: id }, orderBy: { position: 'asc' } });
+    await prisma.$transaction(
+      remaining.map((media, index) => prisma.brandMedia.update({ where: { id: media.id }, data: { position: index } })),
+    );
+    res.json({ ok: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const LOGO_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+const LOGO_MAX_BYTES = 2 * MB;
+
+// Recovers the bucket path from a public URL so the old file can be removed.
+function storagePathFromPublicUrl(url: string): string | null {
+  const marker = `/storage/v1/object/public/${MEDIA_BUCKET}/`;
+  const index = url.indexOf(marker);
+  return index === -1 ? null : url.slice(index + marker.length);
+}
+
+async function removeStoredLogo(url: string | null | undefined): Promise<void> {
+  const path = url ? storagePathFromPublicUrl(url) : null;
+  if (path) await removeMediaFile(path).catch(() => undefined);
+}
+
+app.post('/api/brands/:id/logo', requireBrandOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    if (!res.locals.isAdmin && res.locals.brandId !== id) {
+      return res.status(403).json({ error: 'You can only change the logo of your own brand' });
+    }
+    const { mimeType, dataBase64 } = req.body || {};
+    const ext = LOGO_TYPES[String(mimeType)];
+    if (!ext) {
+      return res.status(400).json({ error: 'Unsupported file type. Use JPG, PNG or WEBP.' });
+    }
+    if (typeof dataBase64 !== 'string' || !dataBase64) {
+      return res.status(400).json({ error: 'File data is missing' });
+    }
+    const bytes = Buffer.from(dataBase64, 'base64');
+    if (bytes.length === 0) {
+      return res.status(400).json({ error: 'File data is empty' });
+    }
+    if (bytes.length > LOGO_MAX_BYTES) {
+      return res.status(413).json({ error: 'Logos must be 2 MB or smaller' });
+    }
+    const brand = await prisma.brand.findUnique({ where: { id }, select: { id: true, logoUrl: true } });
+    if (!brand) return res.status(404).json({ error: 'Brand not found' });
+
+    const path = `logos/${id}/${randomUUID()}.${ext}`;
+    const logoUrl = await uploadMediaFile(path, bytes, String(mimeType));
+    try {
+      await prisma.brand.update({ where: { id }, data: { logoUrl } });
+    } catch (error) {
+      await removeMediaFile(path).catch(() => undefined);
+      throw error;
+    }
+    await removeStoredLogo(brand.logoUrl);
+    res.json({ logoUrl });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/brands/:id/logo', requireBrandOrAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    if (!res.locals.isAdmin && res.locals.brandId !== id) {
+      return res.status(403).json({ error: 'You can only change the logo of your own brand' });
+    }
+    const brand = await prisma.brand.findUnique({ where: { id }, select: { logoUrl: true } });
+    if (!brand) return res.status(404).json({ error: 'Brand not found' });
+    await prisma.brand.update({ where: { id }, data: { logoUrl: '' } });
+    await removeStoredLogo(brand.logoUrl);
+    res.json({ logoUrl: '' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -823,7 +1080,7 @@ app.put('/api/brands/:id', requireBrandOrAdmin, async (req: Request, res: Respon
         ...(logoUrl !== undefined && { logoUrl }),
         ...(showcaseImages !== undefined && { showcaseImages }),
         ...(websiteUrl !== undefined && { websiteUrl }),
-        ...(socialLinks !== undefined && { socialLinks }),
+        ...(socialLinks !== undefined && { socialLinks: cleanSocialLinks(socialLinks) }),
         ...(contactEmail !== undefined && { contactEmail }),
         ...(contactPhone !== undefined && { contactPhone }),
         ...(categoryId !== undefined && { categoryId }),
@@ -1034,6 +1291,18 @@ function toPublicRegistration(reg: BrandRegistration) {
   return { ...reg, passwordHash: undefined };
 }
 
+// Social/contact channels a brand can link. Call and WhatsApp hold phone numbers; the rest hold URLs.
+const SOCIAL_KEYS = ['instagram', 'youtube', 'linkedin', 'facebook', 'call', 'whatsapp'];
+function cleanSocialLinks(input: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!input || typeof input !== 'object') return out;
+  for (const key of SOCIAL_KEYS) {
+    const value = (input as Record<string, unknown>)[key];
+    if (typeof value === 'string' && value.trim()) out[key] = value.trim();
+  }
+  return out;
+}
+
 function slugPrefix(name: string): string {
   const clean = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   if (clean.length >= 4) return clean.substring(0, 4);
@@ -1045,7 +1314,7 @@ app.post('/api/brand-registrations', async (req: Request, res: Response) => {
   try {
     const {
       id, brandName, ownerName, ownerPhone = '', ownerEmail, password,
-      brandType = 'online_d2c', categoryId, websiteUrl, instagramUrl, description,
+      brandType = 'online_d2c', categoryId, websiteUrl, instagramUrl, socialLinks, description,
       city, area, address, operatingHours,
     } = req.body;
 
@@ -1073,6 +1342,10 @@ app.post('/api/brand-registrations', async (req: Request, res: Response) => {
         categoryId,
         websiteUrl: websiteUrl ?? null,
         instagramUrl: instagramUrl ?? null,
+        socialLinks: {
+          ...cleanSocialLinks(socialLinks),
+          ...(instagramUrl && { instagram: String(instagramUrl).trim() }),
+        },
         description: description ?? null,
         city: city ?? null,
         area: area ?? null,
@@ -1166,7 +1439,10 @@ app.put('/api/brand-registrations/:id/review', requireAdmin, async (req: Request
       logoUrl: '',
       showcaseImages: [],
       websiteUrl: reg.websiteUrl || '',
-      socialLinks: { instagram: reg.instagramUrl || '' },
+      socialLinks: {
+        ...cleanSocialLinks(reg.socialLinks),
+        ...(reg.instagramUrl && { instagram: reg.instagramUrl }),
+      },
       contactEmail: reg.ownerEmail,
       contactPhone: reg.ownerPhone,
       categoryId: reg.categoryId,

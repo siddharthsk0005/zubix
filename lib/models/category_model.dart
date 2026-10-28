@@ -5,6 +5,8 @@ class CategoryModel {
   String iconName;
   int displayOrder;
   bool isActive;
+  // 'brand' for brand categories, 'nearby' for local-store categories.
+  String scope;
   Map<String, dynamic>? metadata;
 
   CategoryModel({
@@ -14,6 +16,7 @@ class CategoryModel {
     this.iconName = 'category',
     this.displayOrder = 0,
     this.isActive = true,
+    this.scope = 'brand',
     this.metadata,
   });
 
@@ -24,6 +27,7 @@ class CategoryModel {
     String? iconName,
     int? displayOrder,
     bool? isActive,
+    String? scope,
     Map<String, dynamic>? metadata,
   }) {
     return CategoryModel(
@@ -33,6 +37,7 @@ class CategoryModel {
       iconName: iconName ?? this.iconName,
       displayOrder: displayOrder ?? this.displayOrder,
       isActive: isActive ?? this.isActive,
+      scope: scope ?? this.scope,
       metadata: metadata ?? this.metadata,
     );
   }
@@ -44,6 +49,7 @@ class CategoryModel {
     'iconName': iconName,
     'displayOrder': displayOrder,
     'isActive': isActive,
+    'scope': scope,
     'metadata': metadata,
   };
 
@@ -55,6 +61,7 @@ class CategoryModel {
       iconName: json['iconName'] as String? ?? 'category',
       displayOrder: json['displayOrder'] as int? ?? 0,
       isActive: json['isActive'] as bool? ?? true,
+      scope: json['scope'] as String? ?? 'brand',
       metadata: json['metadata'] as Map<String, dynamic>?,
     );
   }

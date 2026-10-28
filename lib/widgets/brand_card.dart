@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/brand_model.dart';
 import '../models/session_model.dart';
+import '../models/social_channel.dart';
 import '../theme/app_theme.dart';
+import 'brand_media_gallery.dart';
 import 'swipable_gallery.dart';
 
 class BrandCard extends StatelessWidget {
   final BrandModel brand;
+  final String? categoryName;
   final SessionModel? session;
   final VoidCallback onJoinSession;
   final VoidCallback onViewDetails;
@@ -14,52 +18,36 @@ class BrandCard extends StatelessWidget {
   const BrandCard({
     super.key,
     required this.brand,
+    this.categoryName,
     this.session,
     required this.onJoinSession,
     required this.onViewDetails,
   });
 
-  Future<void> _launchExternalUrl(BuildContext context, String urlString) async {
-    try {
-      final uri = Uri.parse(urlString);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Opening $urlString'),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('URL: $urlString'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+  // Saved websites are often entered without a scheme (e.g. www.brand.com).
+  String _withScheme(String url) {
+    final v = url.trim();
+    if (v.startsWith('http://') || v.startsWith('https://')) return v;
+    return 'https://$v';
   }
 
-  IconData _getSocialIcon(String platform) {
-    final lower = platform.toLowerCase();
-    if (lower.contains('insta')) return Icons.camera_alt_outlined;
-    if (lower.contains('x') || lower.contains('twit')) return Icons.alternate_email;
-    if (lower.contains('link')) return Icons.business_center_outlined;
-    if (lower.contains('you')) return Icons.play_circle_outline;
-    return Icons.link;
+  Future<void> _launchExternalUrl(BuildContext context, String urlString) async {
+    // No canLaunchUrl gate: on web it breaks the tap's user gesture, and on Android it returns false without manifest <queries>.
+    final uri = Uri.tryParse(urlString);
+    final opened = uri != null &&
+        await launchUrl(uri, mode: LaunchMode.externalApplication).catchError((_) => false);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open $urlString'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final creatorName = session?.sessionCreatedBy ?? brand.sessionCreatedBy;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
@@ -80,44 +68,17 @@ class BrandCard extends StatelessWidget {
           // 1. Swipable Image Gallery
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Stack(
-              children: [
-                SwipableGallery(
-                  images: brand.showcaseImages,
-                  height: 220,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                // Session Creator Tag
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.pureBlack.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.verified_user_outlined, size: 12, color: AppTheme.pureWhite),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Session created by: $creatorName',
-                          style: const TextStyle(
-                            color: AppTheme.pureWhite,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ],
-                    ),
+            child: brand.media.isNotEmpty
+                ? BrandMediaGallery(
+                    items: brand.media,
+                    height: 220,
+                    borderRadius: BorderRadius.circular(16),
+                  )
+                : SwipableGallery(
+                    images: brand.showcaseImages,
+                    height: 220,
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                ),
-              ],
-            ),
           ),
 
           // 2. Brand Identity & Header
@@ -161,36 +122,30 @@ class BrandCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppTheme.surfaceLight,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: AppTheme.borderLight),
-                            ),
-                            child: const Text(
-                              'VERIFIED PARTNER',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.5,
-                                color: AppTheme.textSecondary,
-                              ),
+                          const SizedBox(width: 6),
+                          const Tooltip(
+                            message: 'Verified partner',
+                            child: Icon(
+                              Icons.verified,
+                              size: 18,
+                              color: Color(0xFF1D9BF0),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        brand.tagline,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: AppTheme.textSecondary,
-                          height: 1.3,
+                      if (categoryName != null && categoryName!.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          categoryName!,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppTheme.textSecondary,
+                            height: 1.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -207,7 +162,7 @@ class BrandCard extends StatelessWidget {
               children: [
                 // Brand Website Button
                 InkWell(
-                  onTap: () => _launchExternalUrl(context, brand.websiteUrl),
+                  onTap: () => _launchExternalUrl(context, _withScheme(brand.websiteUrl)),
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -238,83 +193,36 @@ class BrandCard extends StatelessWidget {
 
                 const SizedBox(width: 10),
 
-                // Social Icons Row
-                ...brand.socialLinks.entries.map((entry) {
+                // Channel logos; each opens its link.
+                ...socialChannels.where((c) => (brand.socialLinks[c.key] ?? '').trim().isNotEmpty).map((channel) {
+                  final value = brand.socialLinks[channel.key]!;
                   return Padding(
                     padding: const EdgeInsets.only(right: 6),
-                    child: InkWell(
-                      onTap: () => _launchExternalUrl(context, entry.value),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: AppTheme.surfaceLight,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppTheme.borderLight),
-                        ),
-                        child: Icon(
-                          _getSocialIcon(entry.key),
-                          size: 15,
-                          color: AppTheme.textPrimary,
+                    child: Tooltip(
+                      message: channel.label,
+                      child: InkWell(
+                        onTap: () {
+                          final uri = socialChannelUri(channel.key, value);
+                          if (uri != null) _launchExternalUrl(context, uri.toString());
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceLight,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppTheme.borderLight),
+                          ),
+                          child: Center(
+                            child: FaIcon(channel.icon, size: 15, color: channel.color),
+                          ),
                         ),
                       ),
                     ),
                   );
                 }),
 
-                const Spacer(),
-
-                // Contact info popover trigger
-                InkWell(
-                  onTap: () {
-                    showModalBottomSheet(
-                      context: context,
-                      backgroundColor: AppTheme.pureWhite,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                      ),
-                      builder: (ctx) => Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${brand.name} • Contact',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 16),
-                            ListTile(
-                              leading: const Icon(Icons.email_outlined, color: AppTheme.pureBlack),
-                              title: const Text('Email'),
-                              subtitle: Text(brand.contactEmail),
-                              contentPadding: EdgeInsets.zero,
-                              onTap: () => _launchExternalUrl(ctx, 'mailto:${brand.contactEmail}'),
-                            ),
-                            ListTile(
-                              leading: const Icon(Icons.phone_outlined, color: AppTheme.pureBlack),
-                              title: const Text('Phone'),
-                              subtitle: Text(brand.contactPhone),
-                              contentPadding: EdgeInsets.zero,
-                              onTap: () => _launchExternalUrl(ctx, 'tel:${brand.contactPhone}'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceLight,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.borderLight),
-                    ),
-                    child: const Icon(Icons.mail_outline, size: 15, color: AppTheme.textPrimary),
-                  ),
-                ),
               ],
             ),
           ),
@@ -343,9 +251,9 @@ class BrandCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          const Text(
-                            'TODAY\'S ACTIVE SESSION',
-                            style: TextStyle(
+                          Text(
+                            'SESSION BY ${(session?.sessionCreatedBy ?? brand.sessionCreatedBy).trim().toUpperCase()}',
+                            style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.6,

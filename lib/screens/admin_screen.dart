@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/brand_model.dart';
 import '../models/brand_registration_model.dart';
+import '../models/social_channel.dart';
 import '../models/session_model.dart';
 import '../models/session_request_model.dart';
 import '../state/app_state.dart';
@@ -72,8 +73,13 @@ class _AdminScreenState extends State<AdminScreen>
   // ----------------------------------------------------
   // ADD / EDIT CATEGORY DIALOG
   // ----------------------------------------------------
-  void _showCategoryDialog({String? categoryId, String? currentName}) {
+  void _showCategoryDialog({
+    String? categoryId,
+    String? currentName,
+    String currentScope = 'brand',
+  }) {
     final textController = TextEditingController(text: currentName ?? '');
+    var scope = currentScope;
 
     showDialog(
       context: context,
@@ -81,27 +87,47 @@ class _AdminScreenState extends State<AdminScreen>
         backgroundColor: AppTheme.pureWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          categoryId == null ? 'Add New Category' : 'Edit Category Name',
+          categoryId == null ? 'Add New Category' : 'Edit Category',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Changes will immediately update the consumer app navigation.',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: textController,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Category Name',
-                hintText: 'e.g. Luxury Footwear, Organic Snacks',
+        content: StatefulBuilder(
+          builder: (ctx, setDialogState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Changes will immediately update the consumer app navigation.',
+                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
               ),
-            ),
-          ],
+              const SizedBox(height: 14),
+              TextField(
+                controller: textController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Category Name',
+                  hintText: 'e.g. Luxury Footwear, Organic Snacks',
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: scope,
+                decoration: const InputDecoration(labelText: 'Used in'),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'brand',
+                    child: Text('Brands tab & brand registration'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'nearby',
+                    child: Text('Nearby tab (local stores)'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v != null) setDialogState(() => scope = v);
+                },
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -116,9 +142,9 @@ class _AdminScreenState extends State<AdminScreen>
               final name = textController.text.trim();
               if (name.isNotEmpty) {
                 if (categoryId == null) {
-                  widget.state.addCategory(name);
+                  widget.state.addCategory(name, scope: scope);
                 } else {
-                  widget.state.updateCategory(categoryId, name);
+                  widget.state.updateCategory(categoryId, name, scope: scope);
                 }
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -821,7 +847,7 @@ class _AdminScreenState extends State<AdminScreen>
                         ),
                       ),
                       Text(
-                        '$brandCount brands linked • Slug: ${cat.slug}',
+                        '${cat.scope == 'nearby' ? 'Nearby' : 'Brands'} • $brandCount linked • Slug: ${cat.slug}',
                         style: const TextStyle(
                           fontSize: 11.5,
                           color: AppTheme.textSecondary,
@@ -836,6 +862,7 @@ class _AdminScreenState extends State<AdminScreen>
                   onPressed: () => _showCategoryDialog(
                     categoryId: cat.id,
                     currentName: cat.name,
+                    currentScope: cat.scope,
                   ),
                 ),
                 Switch.adaptive(
@@ -1973,6 +2000,9 @@ class _AdminScreenState extends State<AdminScreen>
                 _buildDetailItem('Website', reg.websiteUrl!),
               if (reg.instagramUrl != null && reg.instagramUrl!.isNotEmpty)
                 _buildDetailItem('Instagram', reg.instagramUrl!),
+              for (final c in socialChannels)
+                if (c.key != 'instagram' && (reg.socialLinks[c.key] ?? '').trim().isNotEmpty)
+                  _buildDetailItem(c.label, reg.socialLinks[c.key]!),
               if (reg.city != null && reg.city!.isNotEmpty)
                 _buildDetailItem(
                   'City / Area',

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/brand_registration_model.dart';
+import '../models/social_channel.dart';
 import '../models/session_request_model.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/brand_logo_manager.dart';
+import '../widgets/brand_media_manager.dart';
 import '../widgets/brand_profile_edit_dialog.dart';
 import 'brand_register_screen.dart';
 
@@ -1537,6 +1540,10 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                     ('Website', _brand!.websiteUrl!),
                   if (_brand!.instagramUrl != null)
                     ('Instagram', _brand!.instagramUrl!),
+                  ...socialChannels
+                      .where((c) => c.key != 'instagram')
+                      .where((c) => (_brand!.socialLinks[c.key] ?? '').trim().isNotEmpty)
+                      .map((c) => (c.label, _brand!.socialLinks[c.key]!)),
                   if (_brand!.description != null)
                     ('About', _brand!.description!),
                   if (_brand!.city != null) ('City', _brand!.city!),
@@ -1575,6 +1582,26 @@ class _BrandPortalScreenState extends State<BrandPortalScreen> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: AppTheme.borderLight),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: BrandLogoManager(brandId: _brand!.id),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: AppTheme.borderLight),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: BrandMediaManager(brandId: _brand!.id),
           ),
         ],
       ),

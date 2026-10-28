@@ -215,6 +215,15 @@ class SessionRequestModel {
 - **Brand** (`PUT /api/brands/:id/profile`, brand owner or admin): updates the portal registration and the live brand listing together. Editable from the brand portal's Profile section and from the admin Brands tab (`lib/widgets/brand_profile_edit_dialog.dart`). The contact email is also the brand login email. Tagline is not editable here because it exists only on the live brand.
 - **Admin** (`GET /api/customers`, `PUT /api/customers/:id`, admin token): the "All customers" list on the Customers tab (`lib/widgets/admin_customers_panel.dart`).
 
+### Brand Media Gallery
+- Brands upload ordered images/videos from the brand portal Profile tab (`lib/widgets/brand_media_manager.dart`). Customers see them in the same order on the Brands page (`lib/widgets/brand_media_gallery.dart`, used by `brand_card.dart` when `brand.media` is non-empty; otherwise the legacy `showcaseImages` gallery).
+- Storage: Supabase Storage bucket `brand-media` (public). Limits: images (jpg/png/webp) 5 MB, videos (mp4/mov/webm) 20 MB.
+- Table `BrandMedia` (`position` orders items). API: `GET/POST /api/brands/:id/media`, `PUT /api/brands/:id/media/order`, `DELETE /api/brands/:id/media/:mediaId`. Requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `backend/.env`.
+
+### Brand Logo and Social Channels
+- Logo: uploaded from the brand portal Profile tab (`lib/widgets/brand_logo_manager.dart`), stored as `Brand.logoUrl` under `logos/<brandId>/` in the `brand-media` bucket (2 MB limit). API: `POST/DELETE /api/brands/:id/logo`.
+- Social channels: `socialLinks` JSON on `BrandRegistration` and `Brand`. Keys are `instagram`, `youtube`, `linkedin`, `facebook`, `call`, `whatsapp`. Call and WhatsApp hold phone numbers. The shared list and link builder are in `lib/models/social_channel.dart`. Customer cards (`brand_card.dart`) show only channels with a value, and each opens its link.
+
 ---
 
 ## 8. Design System & Theming

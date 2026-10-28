@@ -3,6 +3,7 @@ import '../models/brand_model.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand_card.dart';
+import '../widgets/zubix_app_bar.dart';
 
 class DiscoverScreen extends StatefulWidget {
   final AppState state;
@@ -20,12 +21,30 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   String _searchQuery = '';
-  bool _onlyWithActiveSession = false;
+  bool _searchOpen = false;
+
+  void _toggleSearch() {
+    setState(() {
+      if (_searchOpen) {
+        _searchOpen = false;
+        _searchController.clear();
+        _searchQuery = '';
+        _searchFocus.unfocus();
+      } else {
+        _searchOpen = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _searchFocus.requestFocus();
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -52,18 +71,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       // Search across all approved brands when user types a query
       final query = _searchQuery.toLowerCase();
       list = widget.state.approvedBrands.where((b) {
-        return b.name.toLowerCase().contains(query) ||
+        return b.storeType == 'online_d2c' && (b.name.toLowerCase().contains(query) ||
             b.tagline.toLowerCase().contains(query) ||
-            b.bio.toLowerCase().contains(query);
+            b.bio.toLowerCase().contains(query));
       }).toList();
     } else {
       list = widget.state.getBrandsForCategory(widget.state.selectedCategoryId);
-    }
-
-    if (_onlyWithActiveSession) {
-      list = list
-          .where((b) => widget.state.getActiveSessionForBrand(b.id) != null)
-          .toList();
     }
 
     return list;
@@ -79,88 +92,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       body: CustomScrollView(
         slivers: [
           // App Header
-          SliverAppBar(
-            floating: true,
-            pinned: true,
-            snap: false,
-            backgroundColor: AppTheme.pureWhite,
-            surfaceTintColor: Colors.transparent,
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'ZUBIX',
-                  style: TextStyle(
-                    fontFamily: 'Helvetica',
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2.0,
-                    color: AppTheme.pureBlack,
-                  ),
-                ),
-                Text(
-                  'Curated Brands • Generative Sessions',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.2,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-            actions: [],
-          ),
-
-          // Search Bar
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceLight,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppTheme.borderLight),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  style: const TextStyle(fontSize: 13.5),
-                  decoration: InputDecoration(
-                    hintText: 'Search brands, streetwear, audio...',
-                    hintStyle: const TextStyle(
-                      color: AppTheme.textTertiary,
-                      fontSize: 13,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      size: 20,
-                      color: AppTheme.textSecondary,
-                    ),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(
-                              Icons.clear,
-                              size: 16,
-                              color: AppTheme.textSecondary,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _searchController.clear();
-                                _searchQuery = '';
-                              });
-                            },
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onChanged: (val) {
-                    setState(() => _searchQuery = val);
-                  },
-                ),
-              ),
-            ),
+          ZubixSliverAppBar(
+            state: widget.state,
+            searchOpen: _searchOpen,
+            searchController: _searchController,
+            searchFocus: _searchFocus,
+            searchHint: 'Search brands, streetwear, audio...',
+            onSearchChanged: (val) => setState(() => _searchQuery = val),
+            onToggleSearch: _toggleSearch,
           ),
 
           // Category Chips & Filter Row
@@ -172,49 +111,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  // Active Sessions quick toggle
-                  FilterChip(
-                    selected: _onlyWithActiveSession,
-                    showCheckmark: false,
-                    avatar: Icon(
-                      Icons.bolt,
-                      size: 14,
-                      color: _onlyWithActiveSession
-                          ? AppTheme.pureWhite
-                          : AppTheme.pureBlack,
-                    ),
-                    label: Text(
-                      'Live Sessions Only',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: _onlyWithActiveSession
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        color: _onlyWithActiveSession
-                            ? AppTheme.pureWhite
-                            : AppTheme.pureBlack,
-                      ),
-                    ),
-                    selectedColor: AppTheme.pureBlack,
-                    backgroundColor: AppTheme.surfaceLight,
-                    side: BorderSide(
-                      color: _onlyWithActiveSession
-                          ? AppTheme.pureBlack
-                          : AppTheme.borderLight,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 6,
-                    ),
-                    onSelected: (val) {
-                      setState(() => _onlyWithActiveSession = val);
-                    },
-                  ),
-                  const SizedBox(width: 8),
-
                   // Dynamic Category Chips
                   ...activeCategories.map((cat) {
                     final isSelected =
@@ -321,7 +217,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               setState(() {
                                 _searchController.clear();
                                 _searchQuery = '';
-                                _onlyWithActiveSession = false;
                               });
                             },
                             child: const Text('Reset Filters'),
@@ -338,6 +233,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
                       return BrandCard(
                         brand: brand,
+                        categoryName: widget.state.categoryNameFor(brand.categoryId),
                         session: activeSession,
                         onJoinSession: () {
                           if (activeSession != null) {

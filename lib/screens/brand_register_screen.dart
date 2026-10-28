@@ -50,6 +50,11 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
   final _passwordCtrl = TextEditingController();
   final _websiteCtrl = TextEditingController();
   final _instagramCtrl = TextEditingController();
+  final _youtubeCtrl = TextEditingController();
+  final _linkedinCtrl = TextEditingController();
+  final _facebookCtrl = TextEditingController();
+  final _callCtrl = TextEditingController();
+  final _whatsappCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   // Local store fields
   final _cityCtrl = TextEditingController();
@@ -63,12 +68,31 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
   bool _obscurePassword = true;
 
   // Live categories from the backend, managed in the admin panel.
-  List<CategoryModel> get _categories => widget.state.categories;
+  // Local stores pick from Nearby categories; online brands pick from Brand categories.
+  List<CategoryModel> get _categories => _brandType == 'local_store'
+      ? widget.state.nearbyCategories
+      : widget.state.categories;
 
   // Falls back to the first available category if none is chosen yet.
   String get _effectiveCategoryId {
     if (_categories.any((c) => c.id == _categoryId)) return _categoryId;
     return _categories.isNotEmpty ? _categories.first.id : '';
+  }
+
+  // Channel links that are filled in, keyed by channel name.
+  Map<String, String> _socialLinksInput() {
+    final links = <String, String>{};
+    void add(String key, TextEditingController ctrl) {
+      final value = ctrl.text.trim();
+      if (value.isNotEmpty) links[key] = value;
+    }
+
+    add('youtube', _youtubeCtrl);
+    add('linkedin', _linkedinCtrl);
+    add('facebook', _facebookCtrl);
+    add('call', _callCtrl);
+    add('whatsapp', _whatsappCtrl);
+    return links;
   }
 
   @override
@@ -92,6 +116,11 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
     _passwordCtrl.dispose();
     _websiteCtrl.dispose();
     _instagramCtrl.dispose();
+    _youtubeCtrl.dispose();
+    _linkedinCtrl.dispose();
+    _facebookCtrl.dispose();
+    _callCtrl.dispose();
+    _whatsappCtrl.dispose();
     _descCtrl.dispose();
     _cityCtrl.dispose();
     _areaCtrl.dispose();
@@ -184,6 +213,7 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
       instagramUrl: _instagramCtrl.text.trim().isEmpty
           ? null
           : _instagramCtrl.text.trim(),
+      socialLinks: _socialLinksInput(),
       description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
       city: _brandType == 'local_store' ? _cityCtrl.text.trim() : null,
       area: _brandType == 'local_store' ? _areaCtrl.text.trim() : null,
@@ -1088,6 +1118,88 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
           ],
         ),
         const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('YouTube'),
+                  _buildTextField(
+                    controller: _youtubeCtrl,
+                    hint: 'https://youtube.com/@yourbrand',
+                    keyboardType: TextInputType.url,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('LinkedIn'),
+                  _buildTextField(
+                    controller: _linkedinCtrl,
+                    hint: 'https://linkedin.com/company/yourbrand',
+                    keyboardType: TextInputType.url,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Facebook'),
+                  _buildTextField(
+                    controller: _facebookCtrl,
+                    hint: 'https://facebook.com/yourbrand',
+                    keyboardType: TextInputType.url,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('Call Number'),
+                  _buildTextField(
+                    controller: _callCtrl,
+                    hint: '+91 98765 43210',
+                    keyboardType: TextInputType.phone,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('WhatsApp Number'),
+                  _buildTextField(
+                    controller: _whatsappCtrl,
+                    hint: '+91 98765 43210',
+                    keyboardType: TextInputType.phone,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         _buildLabel('Brand Description'),
         _buildTextField(
           controller: _descCtrl,
@@ -1292,6 +1404,16 @@ class _BrandRegisterScreenState extends State<BrandRegisterScreen>
           if (_websiteCtrl.text.isNotEmpty) ('Website', _websiteCtrl.text),
           if (_instagramCtrl.text.isNotEmpty)
             ('Instagram', _instagramCtrl.text),
+          if (_youtubeCtrl.text.trim().isNotEmpty)
+            ('YouTube', _youtubeCtrl.text.trim()),
+          if (_linkedinCtrl.text.trim().isNotEmpty)
+            ('LinkedIn', _linkedinCtrl.text.trim()),
+          if (_facebookCtrl.text.trim().isNotEmpty)
+            ('Facebook', _facebookCtrl.text.trim()),
+          if (_callCtrl.text.trim().isNotEmpty)
+            ('Call', _callCtrl.text.trim()),
+          if (_whatsappCtrl.text.trim().isNotEmpty)
+            ('WhatsApp', _whatsappCtrl.text.trim()),
         ]),
         if (_brandType == 'local_store') ...[
           const SizedBox(height: 16),
