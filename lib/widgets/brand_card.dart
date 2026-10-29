@@ -12,6 +12,7 @@ class BrandCard extends StatelessWidget {
   final BrandModel brand;
   final String? categoryName;
   final SessionModel? session;
+  final bool joined;
   final VoidCallback onJoinSession;
   final VoidCallback onViewDetails;
 
@@ -20,6 +21,7 @@ class BrandCard extends StatelessWidget {
     required this.brand,
     this.categoryName,
     this.session,
+    this.joined = false,
     required this.onJoinSession,
     required this.onViewDetails,
   });
@@ -276,12 +278,14 @@ class BrandCard extends StatelessWidget {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: onJoinSession,
+                  onPressed: joined ? null : onJoinSession,
                   icon: const Icon(Icons.bolt, size: 16),
                   label: const Text('Join Session'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.pureBlack,
                     foregroundColor: AppTheme.pureWhite,
+                    disabledBackgroundColor: AppTheme.borderLight,
+                    disabledForegroundColor: AppTheme.textTertiary,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),

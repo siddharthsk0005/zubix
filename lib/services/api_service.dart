@@ -6,6 +6,8 @@ import '../models/brand_media_model.dart';
 import '../models/category_model.dart';
 import '../models/brand_model.dart';
 import '../models/session_model.dart';
+import '../models/my_pool_model.dart';
+import '../models/session_pool_model.dart';
 import '../models/voucher_model.dart';
 import '../models/user_model.dart';
 import '../models/brand_registration_model.dart';
@@ -1118,27 +1120,144 @@ class ApiService {
     return null;
   }
 
-  static Future<VoucherModel?> claimSessionVoucher(
-    String sessionId, {
-    String? userId,
-  }) async {
+  // Admin: pool participants and tier counts for one session.
+  static Future<SessionPoolData?> getSessionPool(String sessionId) async {
     try {
       final res = await http
-          .post(
-            Uri.parse('$baseUrl/api/sessions/$sessionId/claim'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({if (userId != null) 'userId': userId}),
+          .get(
+            Uri.parse('$baseUrl/api/sessions/$sessionId/participants'),
+            headers: _adminHeaders,
           )
-          .timeout(const Duration(seconds: 4));
-      if (res.statusCode == 201) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        return VoucherModel.fromJson(data);
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        return SessionPoolData.fromJson(
+          jsonDecode(res.body) as Map<String, dynamic>,
+        );
       }
     } catch (_) {}
     return null;
   }
 
-  // ---------------- VOUCHERS (Supabase Wallet) ----------------
+  // Admin: updates timer, release time and tiers. Returns an error message, or null on success.
+  static Future<String?> updateSessionPool(
+    String sessionId, {
+    int? waitingDurationSeconds,
+    DateTime? poolReleaseAt,
+    List<PoolCouponTier>? couponTiers,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        if (waitingDurationSeconds != null)
+          'waitingDurationSeconds': waitingDurationSeconds,
+        if (poolReleaseAt != null)
+          'poolReleaseAt': poolReleaseAt.toUtc().toIso8601String(),
+        if (couponTiers != null)
+          'couponTiers': couponTiers
+              .map((t) => {
+                    'label': t.label,
+                    'slots': t.slots,
+                    'discountPct': t.discountPct,
+                  })
+              .toList(),
+      };
+      final res = await http
+          .patch(
+            Uri.parse('$baseUrl/api/sessions/$sessionId/pool'),
+            headers: _adminHeaders,
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) return null;
+      return _errorFrom(res.body) ?? 'Could not save pool settings';
+    } catch (_) {
+      return 'Could not reach the server';
+    }
+  }
+
+  // Admin: allots the given pooled users to one tier. Returns an error message, or null on success.
+  static Future<String?> allotSessionVouchers(
+    String sessionId, {
+    required String tierKey,
+    required List<String> userIds,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/sessions/$sessionId/allot'),
+            headers: _adminHeaders,
+            body: jsonEncode({'tierKey': tierKey, 'userIds': userIds}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200 || res.statusCode == 201) return null;
+      return _errorFrom(res.body) ?? 'Allotment failed';
+    } catch (_) {
+      return 'Could not reach the server';
+    }
+  }
+
+  // Customer joins a session's waiting room. The server decides when they are pooled.
+  static Future<String?> joinSessionOnServer(String sessionId, String userId) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/sessions/$sessionId/join'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'userId': userId}),
+          )
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200 || res.statusCode == 201) return null;
+      return _errorFrom(res.body) ?? 'Could not join the session';
+    } catch (_) {
+      return 'Could not reach the server';
+    }
+  }
+
+  static Future<Set<String>?> getJoinedSessionIds(String userId) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/me/joined-sessions?userId=$userId'))
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return (data['sessionIds'] as List<dynamic>).map((e) => e.toString()).toSet();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<List<MyPoolEntry>?> getMyPool(String userId) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl/api/me/pool?userId=$userId'))
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(res.body);
+        return data
+            .map((item) => MyPoolEntry.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> acknowledgePoolEntry(String entryId, String userId) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/me/pool/$entryId/ack'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'userId': userId}),
+          )
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) return null;
+      return _errorFrom(res.body) ?? 'Could not confirm';
+    } catch (_) {
+      return 'Could not reach the server';
+    }
+  }
+
   static Future<List<VoucherModel>?> getVouchers({String? userId}) async {
     try {
       var url = '$baseUrl/api/vouchers';

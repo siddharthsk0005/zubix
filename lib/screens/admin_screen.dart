@@ -8,6 +8,7 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/admin_customers_panel.dart';
 import '../widgets/brand_profile_edit_dialog.dart';
+import '../widgets/session_pool_dialog.dart';
 
 class AdminScreen extends StatefulWidget {
   final AppState state;
@@ -884,6 +885,17 @@ class _AdminScreenState extends State<AdminScreen>
     );
   }
 
+  void _showSessionPoolDialog(SessionModel session, String brandName) {
+    showDialog(
+      context: context,
+      builder: (_) => SessionPoolDialog(
+        session: session,
+        brandName: brandName,
+        onUpdated: widget.state.updateSession,
+      ),
+    );
+  }
+
   // ----------------------------------------------------
   // TAB 2: GENERATIVE SESSIONS MANAGER
   // ----------------------------------------------------
@@ -1098,6 +1110,19 @@ class _AdminScreenState extends State<AdminScreen>
                         style: const TextStyle(
                           fontSize: 11,
                           color: AppTheme.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton.icon(
+                        onPressed: () => _showSessionPoolDialog(session, brandName),
+                        icon: const Icon(Icons.groups_outlined, size: 16),
+                        label: const Text('Manage pool'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppTheme.pureBlack,
+                          textStyle: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],

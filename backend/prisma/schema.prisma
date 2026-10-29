@@ -81,9 +81,35 @@ model Session {
   status                 String         @default("active") // upcoming, active, completed
   totalVouchersPool      Int            @default(100)
   claimedVouchersCount   Int            @default(0)
+  // When allotted vouchers move from the customer's Pool to My Vouchers. Set by admin.
+  poolReleaseAt          DateTime?
+  // Coupon tiers [{key, label, slots, discountPct}] the admin allots from. Index is the tier key.
+  couponTiers            Json?
   createdAt              DateTime       @default(now())
   updatedAt              DateTime       @updatedAt
   claims                 VoucherClaim[]
+  participations         SessionParticipation[]
+}
+
+// A customer's place in a session's waiting pool. Status: waiting, pooled, allotted.
+model SessionParticipation {
+  id          String    @id @default(uuid())
+  sessionId   String
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      String    @default("waiting")
+  joinedAt    DateTime  @default(now())
+  acceptAt    DateTime
+  // Coupon tier the admin allotted this user to. Null until allotted.
+  tierKey     String?
+  allottedAt  DateTime?
+  // Set when the customer presses "Okay" on the pool acceptance notice.
+  acknowledgedAt DateTime?
+  claimId     String?   @unique
+
+  @@unique([sessionId, userId])
+  @@index([userId])
 }
 
 model VoucherClaim {
@@ -102,6 +128,8 @@ model VoucherClaim {
   userId        String?
   user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   terms         String?
+  // Vouchers stay in the customer's Pool until this time. Null means already released.
+  releaseAt     DateTime?
 }
 
 model BrandRegistration {
@@ -164,4 +192,5 @@ model User {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   vouchers          VoucherClaim[]
+  participations    SessionParticipation[]
 }

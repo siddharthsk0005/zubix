@@ -3,6 +3,7 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import 'discover_screen.dart';
 import 'nearby_screen.dart';
+import 'pool_screen.dart';
 import 'generative_session_screen.dart';
 import 'profile_screen.dart';
 import 'vouchers_screen.dart';
@@ -17,10 +18,17 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  static const _vouchersIndex = 2;
+  static const _poolIndex = 2;
+  static const _vouchersIndex = 3;
   static const _brandsIndex = 0;
 
   int _currentIndex = _brandsIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.state.loadMyPool();
+  }
 
   // Joining a session from Brands or Nearby opens the session room on top of the tabs.
   void _openSessionRoom() {
@@ -30,6 +38,10 @@ class _MainShellState extends State<MainShell> {
           listenable: widget.state,
           builder: (routeContext, _) => GenerativeSessionScreen(
             state: widget.state,
+            onNavigateToPool: () {
+              Navigator.of(routeContext).pop();
+              setState(() => _currentIndex = _poolIndex);
+            },
             onNavigateToVouchers: () {
               Navigator.of(routeContext).pop();
               setState(() => _currentIndex = _vouchersIndex);
@@ -45,10 +57,12 @@ class _MainShellState extends State<MainShell> {
     final activeVouchersCount = widget.state.myVouchers
         .where((v) => !v.isRedeemed)
         .length;
+    final poolBadgeCount = widget.state.unacknowledgedPoolCount;
 
     final screens = [
       DiscoverScreen(state: widget.state, onSessionJoined: _openSessionRoom),
       NearbyScreen(state: widget.state, onSessionJoined: _openSessionRoom),
+      PoolScreen(state: widget.state),
       VouchersScreen(
         state: widget.state,
         onExploreBrands: () => setState(() => _currentIndex = _brandsIndex),
@@ -97,6 +111,35 @@ class _MainShellState extends State<MainShell> {
               icon: Icon(Icons.near_me_outlined),
               activeIcon: Icon(Icons.near_me),
               label: 'Nearby',
+            ),
+            BottomNavigationBarItem(
+              icon: Badge(
+                isLabelVisible: poolBadgeCount > 0,
+                label: Text(
+                  '$poolBadgeCount',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                backgroundColor: AppTheme.pureBlack,
+                textColor: AppTheme.pureWhite,
+                child: const Icon(Icons.groups_outlined),
+              ),
+              activeIcon: Badge(
+                isLabelVisible: poolBadgeCount > 0,
+                label: Text(
+                  '$poolBadgeCount',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                backgroundColor: AppTheme.pureBlack,
+                textColor: AppTheme.pureWhite,
+                child: const Icon(Icons.groups),
+              ),
+              label: 'Pool',
             ),
             BottomNavigationBarItem(
               icon: Badge(

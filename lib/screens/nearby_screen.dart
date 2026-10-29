@@ -252,9 +252,18 @@ class _NearbyScreenState extends State<NearbyScreen> {
                         brand: store,
                         categoryName: widget.state.categoryNameFor(store.categoryId),
                         session: session,
-                        onJoinSession: () {
+                        joined: session != null &&
+                            widget.state.hasJoinedSession(session.id),
+                        onJoinSession: () async {
                           if (session != null) {
-                            widget.state.joinSession(session, store);
+                            final error = await widget.state.joinSession(session, store);
+                            if (!context.mounted) return;
+                            if (error != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
+                              );
+                              return;
+                            }
                             widget.onSessionJoined();
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(

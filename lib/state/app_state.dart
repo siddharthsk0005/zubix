@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/category_model.dart';
 import '../models/brand_model.dart';
 import '../models/brand_registration_model.dart';
+import '../models/my_pool_model.dart';
 import '../models/session_model.dart';
 import '../models/session_request_model.dart';
 import '../models/voucher_model.dart';
@@ -12,8 +13,6 @@ import '../services/location_service.dart';
 import '../services/storage/storage_service.dart';
 
 enum AppRole { consumer, admin, brand }
-
-enum SessionParticipationStatus { idle, waiting, completed }
 
 class AppState extends ChangeNotifier {
   AppRole _currentRole = AppRole.consumer;
@@ -468,105 +467,70 @@ class AppState extends ChangeNotifier {
   BrandModel? _activeParticipatingBrand;
   BrandModel? get activeParticipatingBrand => _activeParticipatingBrand;
 
-  SessionParticipationStatus _participationStatus =
-      SessionParticipationStatus.idle;
-  SessionParticipationStatus get participationStatus => _participationStatus;
+  // The customer's joined sessions (waiting, pooled, allotted), refreshed from the server.
+  List<MyPoolEntry> _myPool = [];
+  List<MyPoolEntry> get myPool => List.unmodifiable(_myPool);
 
-  int _remainingSeconds = 0;
-  int get remainingSeconds => _remainingSeconds;
+  // Pooled entries the customer hasn't confirmed with "Okay" yet.
+  int get unacknowledgedPoolCount =>
+      _myPool.where((e) => e.needsAcknowledgement).length;
 
-  int _totalWaitingSeconds = 0;
-  int get totalWaitingSeconds => _totalWaitingSeconds;
-
-  double get waitingProgress {
-    if (_totalWaitingSeconds == 0) return 0.0;
-    return 1.0 - (_remainingSeconds / _totalWaitingSeconds);
+  Future<void> loadMyPool() async {
+    final userId = _currentUserId;
+    if (userId == null) return;
+    final entries = await ApiService.getMyPool(userId);
+    final joined = await ApiService.getJoinedSessionIds(userId);
+    if (joined != null) _joinedSessionIds = joined;
+    if (entries == null) {
+      notifyListeners();
+      return;
+    }
+    _myPool = entries;
+    notifyListeners();
   }
 
-  Timer? _countdownTimer;
-  VoucherModel? _latestUnlockedVoucher;
-  VoucherModel? get latestUnlockedVoucher => _latestUnlockedVoucher;
+  // Every session this customer has joined, including released ones. Drives the disabled Join button.
+  Set<String> _joinedSessionIds = {};
+  bool hasJoinedSession(String sessionId) => _joinedSessionIds.contains(sessionId);
 
-  void joinSession(SessionModel session, BrandModel brand) {
-    _countdownTimer?.cancel();
+  // Returns an error message, or null on success.
+  Future<String?> acknowledgePoolEntry(String entryId) async {
+    final userId = _currentUserId;
+    if (userId == null) return 'Please sign in again';
+    final error = await ApiService.acknowledgePoolEntry(entryId, userId);
+    await loadMyPool();
+    return error;
+  }
+
+  // Joins the session pool on the server. Returns an error message, or null on success.
+  // The room only opens once the server confirms the join, so the status is never empty.
+  Future<String?> joinSession(SessionModel session, BrandModel brand) async {
+    final userId = _currentUserId;
+    if (userId == null) return 'Please sign in again';
+    if (hasJoinedSession(session.id)) return 'You have already joined this session';
+
+    final error = await ApiService.joinSessionOnServer(session.id, userId);
+    if (error != null) return error;
+
+    _joinedSessionIds.add(session.id);
     _activeParticipatingSession = session;
     _activeParticipatingBrand = brand;
-    _totalWaitingSeconds = session.waitingDurationSeconds;
-    _remainingSeconds = session.waitingDurationSeconds;
-    _participationStatus = SessionParticipationStatus.waiting;
-    _latestUnlockedVoucher = null;
-    notifyListeners();
-
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_remainingSeconds > 1) {
-        _remainingSeconds--;
-        notifyListeners();
-      } else {
-        _remainingSeconds = 0;
-        timer.cancel();
-        _completeSessionAndUnlockVoucher();
-      }
-    });
+    await loadMyPool();
+    return null;
   }
 
-  void cancelParticipation() {
-    _countdownTimer?.cancel();
-    _participationStatus = SessionParticipationStatus.idle;
-    _activeParticipatingSession = null;
-    _activeParticipatingBrand = null;
-    _remainingSeconds = 0;
-    _totalWaitingSeconds = 0;
+  // Replaces the voucher list from the server. Used when a scheduled release time passes.
+  Future<void> refreshVouchers() async {
+    final remote = await ApiService.getVouchers(userId: _currentUserId);
+    if (remote == null) return;
+    _myVouchers
+      ..clear()
+      ..addAll(remote);
     notifyListeners();
   }
 
-  Future<void> _completeSessionAndUnlockVoucher() async {
-    if (_activeParticipatingSession == null ||
-        _activeParticipatingBrand == null)
-      return;
-
-    final session = _activeParticipatingSession!;
-    final brand = _activeParticipatingBrand!;
-
-    session.claimedVouchersCount++;
-
-    // Try backend Supabase voucher claim first
-    VoucherModel? serverVoucher;
-    try {
-      serverVoucher = await ApiService.claimSessionVoucher(
-        session.id,
-        userId: _currentUserId,
-      );
-    } catch (_) {}
-
-    final finalVoucher =
-        serverVoucher ??
-        VoucherModel(
-          id: 'vouch_${DateTime.now().millisecondsSinceEpoch}',
-          code: session.couponCode,
-          brandName: brand.name,
-          brandLogoUrl: brand.logoUrl,
-          brandWebsite: brand.websiteUrl,
-          discountValue: session.discountValue,
-          categoryName: categories
-              .firstWhere(
-                (c) => c.id == brand.categoryId,
-                orElse: () =>
-                    CategoryModel(id: '', name: 'General', slug: 'general'),
-              )
-              .name,
-          claimedAt: DateTime.now(),
-          expiresAt: DateTime.now().add(const Duration(days: 14)),
-          terms: 'Valid on official store checkout. Single-use per account.',
-        );
-
-    _myVouchers.insert(0, finalVoucher);
-    _latestUnlockedVoucher = finalVoucher;
-    _participationStatus = SessionParticipationStatus.completed;
-    notifyListeners();
-  }
-
-  void dismissCompletedSession() {
-    _participationStatus = SessionParticipationStatus.idle;
+  // Leaves the session room. The customer stays in the pool on the server.
+  void leaveSessionRoom() {
     _activeParticipatingSession = null;
     _activeParticipatingBrand = null;
     notifyListeners();
@@ -905,9 +869,4 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  @override
-  void dispose() {
-    _countdownTimer?.cancel();
-    super.dispose();
-  }
 }

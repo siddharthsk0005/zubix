@@ -1183,6 +1183,8 @@ app.post('/api/sessions', requireAdmin, async (req: Request, res: Response) => {
       discountValue,
       couponCode,
       totalVouchersPool = 100,
+      couponTiers,
+      poolReleaseAt,
     } = req.body;
 
     const newSession = await prisma.session.create({
@@ -1194,6 +1196,8 @@ app.post('/api/sessions', requireAdmin, async (req: Request, res: Response) => {
         couponCode: couponCode ? couponCode.toUpperCase() : `ZUBIX-${Date.now().toString().slice(-4)}`,
         status: 'active',
         totalVouchersPool: Number(totalVouchersPool),
+        couponTiers: Array.isArray(couponTiers) ? normalizeCouponTiers(couponTiers) : undefined,
+        poolReleaseAt: poolReleaseAt ? new Date(poolReleaseAt) : null,
       },
       include: { brand: true },
     });
@@ -1203,44 +1207,301 @@ app.post('/api/sessions', requireAdmin, async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/sessions/:id/claim', async (req: Request, res: Response) => {
+// ----------------------------------------------------
+// 3b. GENERATIVE SESSION POOL API
+// ----------------------------------------------------
+type CouponTierInput = { label?: string; name?: string; slots?: number; discountPct?: number };
+
+// Tier key is the array index as a string, so it stays stable for the life of a session.
+function normalizeCouponTiers(tiers: CouponTierInput[]) {
+  return tiers.map((t, i) => ({
+    key: String(i),
+    label: String(t.label ?? t.name ?? `Tier ${i + 1}`),
+    slots: Math.max(0, Number(t.slots) || 0),
+    discountPct: Number(t.discountPct) || 0,
+  }));
+}
+
+type StoredTier = { key: string; label: string; slots: number; discountPct: number };
+function readTiers(value: unknown): StoredTier[] {
+  return Array.isArray(value) ? (value as StoredTier[]) : [];
+}
+
+// Moves waiting participations whose accept time has passed into the pool.
+async function settleParticipations(filter: { sessionId?: string; userId?: string }) {
+  await prisma.sessionParticipation.updateMany({
+    where: { ...filter, status: 'waiting', acceptAt: { lte: new Date() } },
+    data: { status: 'pooled' },
+  });
+}
+
+// Join a session. The accept time is computed on the server from the admin's timer.
+app.post('/api/sessions/:id/join', async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.id);
+    const userId = String(req.body?.userId || '');
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.status !== 'active') return res.status(409).json({ error: 'Session is not active' });
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const existing = await prisma.sessionParticipation.findUnique({
+      where: { sessionId_userId: { sessionId, userId } },
+    });
+    if (existing) return res.status(409).json({ error: 'You have already joined this session' });
+
+    const joinedAt = new Date();
+    const acceptAt = new Date(joinedAt.getTime() + session.waitingDurationSeconds * 1000);
+    const created = await prisma.sessionParticipation.create({
+      data: { sessionId, userId, joinedAt, acceptAt, status: 'waiting' },
+    });
+    res.status(201).json(created);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Every session the customer has joined, including released ones, so they cannot rejoin.
+app.get('/api/me/joined-sessions', async (req: Request, res: Response) => {
+  try {
+    const userId = String(req.query.userId || '');
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    const rows = await prisma.sessionParticipation.findMany({
+      where: { userId },
+      select: { sessionId: true },
+    });
+    res.json({ sessionIds: rows.map((r) => r.sessionId) });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Customer's Pool: waiting, pooled and allotted-but-not-yet-released sessions.
+// Allotments whose release time has passed are excluded because they now live in Vouchers.
+app.get('/api/me/pool', async (req: Request, res: Response) => {
+  try {
+    const userId = String(req.query.userId || '');
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    await settleParticipations({ userId });
+    const now = new Date();
+
+    const rows = await prisma.sessionParticipation.findMany({
+      where: { userId },
+      include: { session: { include: { brand: true } } },
+      orderBy: { joinedAt: 'desc' },
+    });
+
+    const claimIds = rows.map((r) => r.claimId).filter((c): c is string => !!c);
+    const claims = claimIds.length
+      ? await prisma.voucherClaim.findMany({ where: { id: { in: claimIds } }, select: { id: true, releaseAt: true, discountValue: true } })
+      : [];
+    const claimById = new Map(claims.map((c) => [c.id, c]));
+
+    const items = rows
+      .map((row) => {
+        const tiers = readTiers(row.session.couponTiers);
+        const tier = row.tierKey ? tiers.find((t) => t.key === row.tierKey) : undefined;
+        const claim = row.claimId ? claimById.get(row.claimId) : undefined;
+        return {
+          id: row.id,
+          sessionId: row.sessionId,
+          sessionTitle: row.session.title,
+          sessionCreatedBy: row.session.sessionCreatedBy,
+          brandName: row.session.brand?.name || 'Partner Brand',
+          brandLogoUrl: row.session.brand?.logoUrl || '',
+          status: row.status,
+          joinedAt: row.joinedAt,
+          acceptAt: row.acceptAt,
+          acknowledgedAt: row.acknowledgedAt,
+          tierKey: row.tierKey,
+          tierLabel: tier?.label ?? null,
+          discountValue: claim?.discountValue ?? row.session.discountValue,
+          releaseAt: claim?.releaseAt ?? null,
+          claimId: row.claimId,
+        };
+      })
+      .filter((item) => !(item.status === 'allotted' && (!item.releaseAt || item.releaseAt <= now)));
+
+    res.json(items);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Customer presses "Okay" on the pool acceptance notice. Only pooled entries can be acknowledged.
+app.post('/api/me/pool/:id/ack', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { userId } = req.body;
-    const session: any = await prisma.session.findUnique({
-      where: { id },
-      include: { brand: { include: { category: true } } },
-    });
+    const userId = String(req.body?.userId || '');
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
 
+    const row = await prisma.sessionParticipation.findUnique({ where: { id } });
+    if (!row || row.userId !== userId) return res.status(404).json({ error: 'Pool entry not found' });
+
+    await settleParticipations({ userId });
+    const fresh = await prisma.sessionParticipation.findUnique({ where: { id } });
+    if (!fresh || fresh.status === 'waiting') {
+      return res.status(409).json({ error: 'Not accepted into the Pool yet' });
+    }
+    if (fresh.acknowledgedAt) return res.json(fresh);
+
+    res.json(await prisma.sessionParticipation.update({ where: { id }, data: { acknowledgedAt: new Date() } }));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: everyone who joined a session, plus per-tier slot usage.
+app.get('/api/sessions/:id/participants', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.id);
+    await settleParticipations({ sessionId });
+
+    const session = await prisma.session.findUnique({ where: { id: sessionId }, include: { brand: true } });
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
-    // Increment claimed count
-    await prisma.session.update({
-      where: { id },
-      data: { claimedVouchersCount: { increment: 1 } },
+    const rows = await prisma.sessionParticipation.findMany({
+      where: { sessionId },
+      include: { user: { select: { id: true, name: true, phone: true, email: true } } },
+      orderBy: { joinedAt: 'asc' },
     });
 
-    const claimed = await prisma.voucherClaim.create({
-      data: {
-        code: session.couponCode,
-        brandId: session.brandId,
-        sessionId: session.id,
-        discountValue: session.discountValue,
-        brandWebsite: session.brand?.websiteUrl || '',
-        categoryName: session.brand?.category?.name || 'Featured',
-        claimedAt: new Date(),
-        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        isRedeemed: false,
-        userId: userId ? String(userId) : null,
-        terms: 'Official partner store discount. Redeemable at checkout.',
+    const tiers = readTiers(session.couponTiers).map((t) => ({
+      ...t,
+      allottedCount: rows.filter((r) => r.tierKey === t.key && r.status === 'allotted').length,
+    }));
+
+    res.json({
+      session: {
+        id: session.id,
+        title: session.title,
+        brandName: session.brand?.name || '',
+        status: session.status,
+        waitingDurationSeconds: session.waitingDurationSeconds,
+        poolReleaseAt: session.poolReleaseAt,
       },
+      tiers,
+      participants: rows.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        name: r.user?.name || null,
+        phone: r.user?.phone || null,
+        email: r.user?.email || null,
+        status: r.status,
+        joinedAt: r.joinedAt,
+        acceptAt: r.acceptAt,
+        tierKey: r.tierKey,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: sets the waiting timer, the voucher release time and (before any allotment) the tiers.
+app.patch('/api/sessions/:id/pool', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { waitingDurationSeconds, poolReleaseAt, couponTiers } = req.body || {};
+
+    const session = await prisma.session.findUnique({ where: { id } });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const data: Record<string, unknown> = {};
+    if (waitingDurationSeconds !== undefined) {
+      const seconds = Number(waitingDurationSeconds);
+      if (!Number.isFinite(seconds) || seconds < 0) return res.status(400).json({ error: 'Invalid waiting duration' });
+      data.waitingDurationSeconds = seconds;
+    }
+    if (poolReleaseAt !== undefined) {
+      const releaseAt = poolReleaseAt ? new Date(poolReleaseAt) : null;
+      if (releaseAt && Number.isNaN(releaseAt.getTime())) return res.status(400).json({ error: 'Invalid release time' });
+      data.poolReleaseAt = releaseAt;
+    }
+    if (Array.isArray(couponTiers)) {
+      const allotted = await prisma.sessionParticipation.count({ where: { sessionId: id, status: 'allotted' } });
+      if (allotted > 0) return res.status(409).json({ error: 'Tiers cannot change after vouchers are allotted' });
+      data.couponTiers = normalizeCouponTiers(couponTiers);
+    }
+
+    const updated = await prisma.session.update({ where: { id }, data });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: allots pooled participants to one coupon tier. Each person can be allotted once, and the tier's slot count is a hard limit.
+app.post('/api/sessions/:id/allot', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.id);
+    const { tierKey, userIds } = req.body || {};
+    const ids: string[] = Array.isArray(userIds) ? [...new Set(userIds.map((u: unknown) => String(u)))] : [];
+    if (tierKey === undefined || ids.length === 0) {
+      return res.status(400).json({ error: 'tierKey and userIds are required' });
+    }
+
+    const session = await prisma.session.findUnique({ where: { id: sessionId }, include: { brand: { include: { category: true } } } });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (!session.poolReleaseAt) return res.status(409).json({ error: 'Set the pool release time before allotting vouchers' });
+
+    const tier = readTiers(session.couponTiers).find((t) => t.key === String(tierKey));
+    if (!tier) return res.status(400).json({ error: 'Unknown coupon tier' });
+
+    await settleParticipations({ sessionId });
+
+    const eligible = await prisma.sessionParticipation.findMany({
+      where: { sessionId, userId: { in: ids }, status: 'pooled' },
+    });
+    if (eligible.length !== ids.length) {
+      const eligibleIds = new Set(eligible.map((e) => e.userId));
+      const blocked = ids.filter((u) => !eligibleIds.has(u));
+      return res.status(409).json({ error: 'Some users are not in the pool or already allotted', userIds: blocked });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const used = await tx.sessionParticipation.count({ where: { sessionId, tierKey: tier.key, status: 'allotted' } });
+      if (used + eligible.length > tier.slots) {
+        return { error: `Only ${Math.max(0, tier.slots - used)} slot(s) left in "${tier.label}"` };
+      }
+
+      const now = new Date();
+      for (const participation of eligible) {
+        const claim = await tx.voucherClaim.create({
+          data: {
+            code: session.couponCode,
+            brandId: session.brandId,
+            sessionId: session.id,
+            discountValue: `${tier.discountPct}% OFF`,
+            brandWebsite: session.brand?.websiteUrl || '',
+            categoryName: session.brand?.category?.name || 'Featured',
+            claimedAt: now,
+            expiresAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+            isRedeemed: false,
+            userId: participation.userId,
+            terms: 'Official partner store discount. Redeemable at checkout.',
+            releaseAt: session.poolReleaseAt,
+          },
+        });
+        await tx.sessionParticipation.update({
+          where: { id: participation.id },
+          data: { status: 'allotted', tierKey: tier.key, allottedAt: now, claimId: claim.id },
+        });
+      }
+      await tx.session.update({
+        where: { id: session.id },
+        data: { claimedVouchersCount: { increment: eligible.length } },
+      });
+      return { allotted: eligible.length };
     });
 
-    res.status(201).json({
-      ...claimed,
-      brandName: session.brand?.name || 'Partner Brand',
-      brandLogoUrl: session.brand?.logoUrl || '',
-    });
+    if ('error' in result) return res.status(409).json({ error: result.error });
+    res.json(result);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -1252,9 +1513,11 @@ app.post('/api/sessions/:id/claim', async (req: Request, res: Response) => {
 app.get('/api/vouchers', async (req: Request, res: Response) => {
   try {
     const { userId } = req.query;
+    const now = new Date();
     const vouchers: any[] = await prisma.voucherClaim.findMany({
       where: {
         ...(userId ? { userId: String(userId) } : {}),
+        OR: [{ releaseAt: null }, { releaseAt: { lte: now } }],
       },
       include: { brand: true },
       orderBy: { claimedAt: 'desc' },
@@ -1567,7 +1830,7 @@ app.put('/api/session-requests/:id/review', requireAdmin, async (req: Request, r
       return res.status(409).json({ error: 'Approve the brand before scheduling its session' });
     }
 
-    const tiers = existing.couponTiers as Array<{ slots?: number; discountPct?: number }>;
+    const tiers = existing.couponTiers as Array<{ label?: string; name?: string; slots?: number; discountPct?: number }>;
     const topDiscount = tiers[0]?.discountPct ?? 20;
     const totalSlots = tiers.reduce((sum, t) => sum + (Number(t.slots) || 0), 0);
 
@@ -1583,6 +1846,7 @@ app.put('/api/session-requests/:id/review', requireAdmin, async (req: Request, r
           couponCode: `ZUBIX-${slugPrefix(existing.brandName)}-${topDiscount}`,
           status: 'active',
           totalVouchersPool: totalSlots,
+          couponTiers: normalizeCouponTiers(tiers),
         },
       }),
     ]);

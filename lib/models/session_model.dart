@@ -1,3 +1,5 @@
+import 'session_pool_model.dart';
+
 class SessionModel {
   final String id;
   final String title;
@@ -11,6 +13,8 @@ class SessionModel {
   int claimedVouchersCount;
   final DateTime createdAt;
   final DateTime? expiresAt;
+  final DateTime? poolReleaseAt;
+  final List<PoolCouponTier> couponTiers;
 
   SessionModel({
     required this.id,
@@ -25,6 +29,8 @@ class SessionModel {
     this.claimedVouchersCount = 0,
     DateTime? createdAt,
     this.expiresAt,
+    this.poolReleaseAt,
+    this.couponTiers = const [],
   }) : createdAt = createdAt ?? DateTime.now();
 
   SessionModel copyWith({
@@ -40,6 +46,8 @@ class SessionModel {
     int? claimedVouchersCount,
     DateTime? createdAt,
     DateTime? expiresAt,
+    DateTime? poolReleaseAt,
+    List<PoolCouponTier>? couponTiers,
   }) {
     return SessionModel(
       id: id ?? this.id,
@@ -54,6 +62,8 @@ class SessionModel {
       claimedVouchersCount: claimedVouchersCount ?? this.claimedVouchersCount,
       createdAt: createdAt ?? this.createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
+      poolReleaseAt: poolReleaseAt ?? this.poolReleaseAt,
+      couponTiers: couponTiers ?? this.couponTiers,
     );
   }
 
@@ -70,6 +80,8 @@ class SessionModel {
     'claimedVouchersCount': claimedVouchersCount,
     'createdAt': createdAt.toIso8601String(),
     'expiresAt': expiresAt?.toIso8601String(),
+    'poolReleaseAt': poolReleaseAt?.toIso8601String(),
+    'couponTiers': couponTiers.map((t) => t.toJson()).toList(),
   };
 
   factory SessionModel.fromJson(Map<String, dynamic> json) {
@@ -86,6 +98,12 @@ class SessionModel {
       claimedVouchersCount: json['claimedVouchersCount'] as int? ?? 0,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
       expiresAt: json['expiresAt'] != null ? DateTime.parse(json['expiresAt'] as String) : null,
+      poolReleaseAt: json['poolReleaseAt'] != null
+          ? DateTime.parse(json['poolReleaseAt'] as String)
+          : null,
+      couponTiers: (json['couponTiers'] as List<dynamic>? ?? [])
+          .map((t) => PoolCouponTier.fromJson(t as Map<String, dynamic>))
+          .toList(),
     );
   }
 }

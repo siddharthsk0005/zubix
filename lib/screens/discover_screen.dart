@@ -235,9 +235,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         brand: brand,
                         categoryName: widget.state.categoryNameFor(brand.categoryId),
                         session: activeSession,
-                        onJoinSession: () {
+                        joined: activeSession != null &&
+                            widget.state.hasJoinedSession(activeSession.id),
+                        onJoinSession: () async {
                           if (activeSession != null) {
-                            widget.state.joinSession(activeSession, brand);
+                            final error = await widget.state.joinSession(activeSession, brand);
+                            if (!context.mounted) return;
+                            if (error != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
+                              );
+                              return;
+                            }
                             widget.onSessionJoined();
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
